@@ -1,0 +1,4 @@
+target
+.env
+node_modules
+deployments

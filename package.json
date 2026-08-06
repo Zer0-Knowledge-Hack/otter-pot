@@ -1,0 +1,49 @@
+{
+    "name": "ss",
+    "version": "1.2.1",
+    "private": true,
+    "workspaces": {
+        "packages": [
+            "packages/stylus",
+            "packages/nextjs"
+        ]
+    },
+    "scripts": {
+        "account": "yarn workspace @ss/stylus account",
+        "chain": "./nitro-devnode/start-chain-with-cors.sh",
+        "clean-contracts": "yarn workspace @ss/stylus clean-contracts",
+        "compile": "yarn workspace @ss/stylus compile",
+        "deploy": "yarn workspace @ss/stylus deploy",
+        "export-abi": "yarn workspace @ss/stylus export-abi",
+        "flatten": "yarn workspace @ss/stylus flatten",
+        "fork": "yarn workspace @ss/stylus fork",
+        "format": "yarn next:format",
+        "generate": "yarn workspace @ss/stylus generate",
+        "info:networks": "yarn workspace @ss/stylus info:networks",
+        "postinstall": "husky install",
+        "new-module": "yarn workspace @ss/stylus new-module",
+        "next:build": "yarn workspace @ss/nextjs build",
+        "next:check-types": "yarn workspace @ss/nextjs check-types",
+        "next:format": "yarn workspace @ss/nextjs format",
+        "next:lint": "yarn workspace @ss/nextjs lint",
+        "precommit": "lint-staged",
+        "start": "yarn workspace @ss/nextjs dev",
+        "stylus-verify": "yarn workspace @ss/stylus stylus-verify",
+        "stylus:format": "yarn workspace @ss/stylus format",
+        "stylus:lint": "yarn workspace @ss/stylus lint",
+        "stylus:test": "yarn workspace @ss/stylus test",
+        "test": "yarn stylus:test",
+        "vercel": "yarn workspace @ss/nextjs vercel",
+        "vercel:yolo": "yarn workspace @ss/nextjs vercel:yolo",
+        "verify": "yarn workspace @ss/stylus verify",
+        "openspec:propose": "openspec change create",
+        "openspec:apply": "openspec change apply",
+        "openspec:archive": "openspec change archive",
+        "openspec:list": "openspec change list"
+    },
+    "devDependencies": {
+        "husky": "^8.0.1",
+        "lint-staged": "^13.0.3"
+    },
+    "packageManager": "yarn@3.2.3"
+}

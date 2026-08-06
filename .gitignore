@@ -1,49 +1,35 @@
-# Dependencias
+# ============================================
+# DEPENDENCIAS Y PAQUETES
+# ============================================
 node_modules/
-packages/*/node_modules/
-packages/stylus/target/
-packages/nextjs/.next/
-packages/nextjs/out/
-packages/worker/dist/
-packages/worker/.wrangler/
+.eslintcache
 
-# Enlaces simbólicos a open-agent-hub (se generan localmente con 'oah enable')
-# Ignoramos TODAS las subcarpetas que contengan enlaces
-.claude/skills/
-.claude/agents/
-.claude/commands/
-.cursor/skills/
-.cursor/agents/
-.cursor/commands/
-.opencode/skills/
-.opencode/agents/
-.opencode/commands/
-.codex/
-.agent/skills/
-.agents/skills/
-# Nota: .agent/workflows/ NO se ignora (contiene comandos slash)
-# Nota: .agents/skills/ contiene skills de OpenSpec, pero los ignoramos porque son copias locales y no enlaces.
-# Mejor: ignoramos todos los enlaces genéricamente, pero mantenemos los comandos.
+# Yarn
+.yarn/*
+!.yarn/patches
+!.yarn/plugins
+!.yarn/releases
+!.yarn/sdks
+!.yarn/versions
 
-# Si quieres ser más específico, ignora solo los directorios que contienen enlaces:
-**/skills/
-**/agents/
-**/commands/
-# Esto ignorará TODOS los directorios llamados skills, agents, commands en cualquier subcarpeta.
-# Pero OJO: también ignoraría los comandos slash si están en una carpeta 'commands' dentro de .claude, .cursor, etc.
-# Por eso es mejor ignorar solo los que son enlaces. Como OpenSpec pone sus comandos en .claude/commands/ (sin subcarpetas), y los enlaces de oah están en .claude/skills/, .claude/agents/, .claude/commands/ (pero estos últimos son enlaces), podemos ignorar específicamente:
-.claude/skills/
-.claude/agents/
-.claude/commands/
-.cursor/skills/
-.cursor/agents/
-.cursor/commands/
-.opencode/skills/
-.opencode/agents/
-.opencode/commands/
-.codex/
+# ============================================
+# BUILDS Y ARTEFACTOS (MONOREPO)
+# ============================================
+# Rust / Stylus
+target/
+**/target/
 
-# Archivos de entorno y secretos
+# Next.js
+.next/
+**/out/
+
+# Cloudflare Worker
+.wrangler/
+**/dist/
+
+# ============================================
+# ENTORNO Y SECRETOS
+# ============================================
 .env
 .env.*
 *.pem
@@ -51,24 +37,55 @@ packages/worker/.wrangler/
 secrets/
 *.secret
 
-# IDE y editor
+# ============================================
+# IDE Y EDITORES
+# ============================================
 .vscode/
+!.vscode/settings.json
 .idea/
 *.swp
 *.swo
+.DS_Store
+Thumbs.db
 
-# Logs y cobertura
+# ============================================
+# ARCHIVOS DE LOGS Y COBERTURA
+# ============================================
 *.log
 coverage/
 .nyc_output/
 
-# Sistema
-.DS_Store
-Thumbs.db
-
-# Archivos de build temporales
+# ============================================
+# ARCHIVOS TEMPORALES Y BACKUP
+# ============================================
 *.tmp
 *.bak
 
-# docs
-docs
+# ============================================
+# DEPLOYMENT Y PLATAFORMAS
+# ============================================
+.vercel/
+
+# ============================================
+# AGENTES Y ENLACES SIMBÓLICOS DE IA (OAH)
+# ============================================
+# Enlaces simbólicos generados localmente por Open Agent Hub
+.claude/skills/
+.claude/agents/
+.claude/commands/
+.cursor/skills/
+.cursor/agents/
+.cursor/commands/
+.opencode/skills/
+.opencode/agents/
+.opencode/commands/
+
+# Estados locales de agentes
+.codex/
+.agent/skills/
+.agents/skills/
+.worktrees/
+.claude/skills/smoke-test/.smoke-state.json
+.claude/skills/cdp-with-wallet/.cdp-wallet-state.json
+
+docs/
