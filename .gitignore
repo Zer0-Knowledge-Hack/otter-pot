@@ -1,0 +1,74 @@
+# Dependencias
+node_modules/
+packages/*/node_modules/
+packages/stylus/target/
+packages/nextjs/.next/
+packages/nextjs/out/
+packages/worker/dist/
+packages/worker/.wrangler/
+
+# Enlaces simbólicos a open-agent-hub (se generan localmente con 'oah enable')
+# Ignoramos TODAS las subcarpetas que contengan enlaces
+.claude/skills/
+.claude/agents/
+.claude/commands/
+.cursor/skills/
+.cursor/agents/
+.cursor/commands/
+.opencode/skills/
+.opencode/agents/
+.opencode/commands/
+.codex/
+.agent/skills/
+.agents/skills/
+# Nota: .agent/workflows/ NO se ignora (contiene comandos slash)
+# Nota: .agents/skills/ contiene skills de OpenSpec, pero los ignoramos porque son copias locales y no enlaces.
+# Mejor: ignoramos todos los enlaces genéricamente, pero mantenemos los comandos.
+
+# Si quieres ser más específico, ignora solo los directorios que contienen enlaces:
+**/skills/
+**/agents/
+**/commands/
+# Esto ignorará TODOS los directorios llamados skills, agents, commands en cualquier subcarpeta.
+# Pero OJO: también ignoraría los comandos slash si están en una carpeta 'commands' dentro de .claude, .cursor, etc.
+# Por eso es mejor ignorar solo los que son enlaces. Como OpenSpec pone sus comandos en .claude/commands/ (sin subcarpetas), y los enlaces de oah están en .claude/skills/, .claude/agents/, .claude/commands/ (pero estos últimos son enlaces), podemos ignorar específicamente:
+.claude/skills/
+.claude/agents/
+.claude/commands/
+.cursor/skills/
+.cursor/agents/
+.cursor/commands/
+.opencode/skills/
+.opencode/agents/
+.opencode/commands/
+.codex/
+
+# Archivos de entorno y secretos
+.env
+.env.*
+*.pem
+*.key
+secrets/
+*.secret
+
+# IDE y editor
+.vscode/
+.idea/
+*.swp
+*.swo
+
+# Logs y cobertura
+*.log
+coverage/
+.nyc_output/
+
+# Sistema
+.DS_Store
+Thumbs.db
+
+# Archivos de build temporales
+*.tmp
+*.bak
+
+# docs
+docs
