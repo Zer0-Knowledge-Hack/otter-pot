@@ -1,0 +1,17 @@
+[package]
+name = "challenge_pool"
+version = "0.1.0"
+edition = "2021"
+
+[lib]
+crate-type = ["lib", "cdylib"]
+
+[dependencies]
+alloy-primitives = "=0.7.6"
+alloy-sol-types  = "=0.7.6"
+mini-alloc       = "0.4.2"
+stylus-sdk       = "0.6.0"
+hex              = "0.4.3"
+
+[features]
+export-abi = ["stylus-sdk/export-abi"]
