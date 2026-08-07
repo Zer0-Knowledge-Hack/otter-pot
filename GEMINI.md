@@ -4,7 +4,9 @@ Este archivo complementa a `AGENTS.md` (misma raíz del repo), que contiene las 
 
 ## Qué es este proyecto
 
-Retos entre amigos con pozo de premios compartido, sobre Arbitrum (Stylus/Rust), con interfaz 100% en Telegram (bot + Mini App). Proyecto para el track de Arbitrum de ETH Lima 2026.
+**OtterPot**: retos entre amigos con pozo de premios compartido, sobre Arbitrum (Stylus/Rust), con interfaz 100% en Telegram (bot + Mini App). Proyecto para el track de Arbitrum de ETH Lima 2026.
+
+La identidad visual (nombre, mascota, paleta) es `DESIGN.md`. No inventes nombres, colores ni tono de marca fuera de ese documento.
 
 La fuente de verdad de negocio y arquitectura es `docs/SDD.md`. Antes de proponer un cambio de diseño (nuevo estado de reto, nueva regla de comisión, cambio en el modelo de tesorería), consulta ese documento — si tu cambio lo contradice, señálalo explícitamente en vez de improvisar una solución distinta.
 

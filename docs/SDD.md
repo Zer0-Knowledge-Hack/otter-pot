@@ -1,18 +1,22 @@
 # Especificación de Diseño de Software (SDD)
-## Proyecto "X" (nombre comercial pendiente) — Plataforma de retos entre amigos con pozo compartido en Arbitrum
+## OtterPot — Plataforma de retos entre amigos con pozo compartido en Arbitrum
 
 | Campo | Valor |
 |---|---|
 | Track | Arbitrum — ETH Lima 2026 |
-| Estado | v2 — incorpora modelo de tesorería y comisión dinámica |
+| Estado | v4 — nombre e identidad definidos |
 | Base de este documento | Reunión de equipo del 4 ago 2026 + sesiones de diseño posteriores |
 | Alcance de detalle | Documento de referencia para todo el equipo; profundidad técnica adicional en los módulos de Smart Contract y Backend |
+| Identidad visual | `DESIGN.md` — nombre, mascota, paleta y directrices de UI |
+| Fundamentos de producto | `docs/PRODUCT.md` (qué es y para quién) y `docs/VALIDATION.md` (si aguanta) |
 
 ---
 
 ## 1. Propósito y visión del producto
 
-El proyecto es una infraestructura de retos con premio compartido, accesible enteramente desde Telegram, construida sobre Arbitrum. Un grupo de personas define un reto, cada participante deposita una cuota en un smart contract que actúa como custodio transparente del pozo, y al finalizar el reto el pozo se libera automáticamente al ganador según reglas de validación definidas de antemano.
+**OtterPot** es una infraestructura de retos con premio compartido, accesible enteramente desde Telegram, construida sobre Arbitrum. Un grupo de personas define un reto, cada participante deposita una cuota en un smart contract que actúa como custodio transparente del pozo, y al finalizar el reto el pozo se libera automáticamente al ganador según reglas de validación definidas de antemano.
+
+El nombre viene de la nutria (*otter*) que sostiene una olla (*pot*): el animal que guarda el pozo del grupo sin quedárselo. La identidad visual completa —mascota, paleta y directrices de UI— vive en `DESIGN.md`.
 
 La visión de largo plazo es que esta infraestructura sirva tanto para retos informales entre amigos (deporte, hábitos, retos creativos) como, en una fase posterior, para contextos más rigurosos como hackathons o comunidades grandes, mediante modos de resolución configurables.
 
@@ -328,4 +332,5 @@ El contrato de Retos no participa en la conversión de fondos a moneda local: su
 
 - **v1:** propuesta inicial de arquitectura, roles y casos de uso.
 - **v2:** incorpora el modelo de Tesorería por participaciones, el modelo de comisión dinámica cubierta por rendimiento, la corrección sobre comisiones bancarias en Perú, y la actualización de roles del equipo.
-- **v3 (actual):** incorpora los diagramas de arquitectura general, secuencia del flujo núcleo, componentes y comunicación general (sección 5.3–5.6).
+- **v3:** incorpora los diagramas de arquitectura general, secuencia del flujo núcleo, componentes y comunicación general (sección 5.3–5.6).
+- **v4 (actual):** fija el nombre comercial (OtterPot, antes "Proyecto X") y enlaza la identidad visual de `DESIGN.md` y los fundamentos de producto de `docs/`. Corrige el campo Estado de la cabecera, que decía v2 mientras el historial ya iba por v3.

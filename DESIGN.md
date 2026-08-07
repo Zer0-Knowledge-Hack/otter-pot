@@ -10,7 +10,13 @@ Este documento establece las directrices visuales y de experiencia de usuario pa
 
 **OtterPot**
 
-### Eslogan (tagline) sugerido
+### Eslogan (tagline) — PENDIENTE, no usar todavía
+
+> ⚠️ El nombre, la mascota y la paleta están definidos. **El eslogan no.**
+>
+> "Retos que crecen juntos" afirma que el pozo crece, y a escala del MVP eso es falso: el rendimiento de un reto corto y de monto bajo es de céntimos, y la comisión se descuenta primero del rendimiento y luego del capital (SDD §8.2). El ganador puede recibir **menos** de lo que el grupo depositó.
+>
+> No llevar este eslogan a la landing ni al pitch hasta que sea verdad o hasta elegir otro. Ver `docs/VALIDATION.md` §2.8.
 
 *"Retos que crecen juntos"*  
 *(Alternativas en inglés: "Challenges that grow together", "Pool your goals", "Grow with the flow")*
@@ -217,3 +223,4 @@ Mantener un área de seguridad alrededor del logo equivalente al ancho de la "O"
 ## 10. Historial de cambios
 
 - **v1 (2026-08-06):** Creación del documento con la identidad visual completa.
+- **v2 (2026-08-07):** Se confirman como definitivos el nombre (OtterPot), la mascota (nutria con olla) y la paleta naranja/azul; el SDD y las guías de agentes se alinean con ellos. El eslogan queda marcado como pendiente por contradecir el modelo de comisiones (§1).
