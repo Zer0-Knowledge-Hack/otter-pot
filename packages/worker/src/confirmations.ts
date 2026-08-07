@@ -20,6 +20,8 @@ export interface ChallengeConfirmationState {
   votes: Record<WalletAddress, WalletAddress>;
   /** ganador para el que ya se disparó consenso, o null si todavía no se alcanzó. */
   consensusTriggeredFor: WalletAddress | null;
+  /** umbral de consenso vigente para este reto — se fija con la primera confirmación, no cambia después. */
+  threshold: number;
 }
 
 export interface ConfirmationStore {
@@ -48,7 +50,11 @@ export interface RegisterConfirmationResult {
   winner?: WalletAddress;
 }
 
-const emptyState = (): ChallengeConfirmationState => ({ votes: {}, consensusTriggeredFor: null });
+const emptyState = (threshold: number): ChallengeConfirmationState => ({
+  votes: {},
+  consensusTriggeredFor: null,
+  threshold,
+});
 
 export async function registerConfirmation(
   store: ConfirmationStore,
@@ -62,7 +68,9 @@ export async function registerConfirmation(
     return { accepted: false, reason: "invalid-wallet", consensusReached: false, alreadyTriggered: false };
   }
 
-  const state = (await store.get(challengeId)) ?? emptyState();
+  // El umbral se fija con la primera confirmación del reto y no se vuelve a tocar después,
+  // aunque una llamada posterior pase un valor distinto — evita que el umbral "flote" a mitad de reto.
+  const state = (await store.get(challengeId)) ?? emptyState(threshold);
 
   // El consenso se dispara una sola vez por reto — confirmaciones posteriores no lo vuelven a disparar.
   if (state.consensusTriggeredFor) {
@@ -90,7 +98,39 @@ export async function registerConfirmation(
     }
   }
 
-  await store.put(challengeId, { votes, consensusTriggeredFor: winner ?? null });
+  await store.put(challengeId, { votes, consensusTriggeredFor: winner ?? null, threshold: state.threshold });
 
   return { accepted: true, consensusReached: Boolean(winner), alreadyTriggered: false, winner };
+}
+
+/**
+ * Estado de un reto para exponer al bot/Mini App — W4.1 (docs/backend-plan.md, Fase 4).
+ * Refleja exactamente lo que hay en el store al momento de la consulta, sin cachear nada.
+ */
+export interface ChallengeStatus {
+  challengeId: ChallengeId;
+  confirmationsCount: number;
+  /** null si el reto todavía no recibió ninguna confirmación (no se fijó umbral todavía). */
+  threshold: number | null;
+  consensusReached: boolean;
+  winner?: WalletAddress;
+}
+
+export async function getChallengeStatus(
+  store: ConfirmationStore,
+  challengeId: ChallengeId,
+): Promise<ChallengeStatus> {
+  const state = await store.get(challengeId);
+
+  if (!state) {
+    return { challengeId, confirmationsCount: 0, threshold: null, consensusReached: false };
+  }
+
+  return {
+    challengeId,
+    confirmationsCount: Object.keys(state.votes).length,
+    threshold: state.threshold,
+    consensusReached: Boolean(state.consensusTriggeredFor),
+    winner: state.consensusTriggeredFor ?? undefined,
+  };
 }

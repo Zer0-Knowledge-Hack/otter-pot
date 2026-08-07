@@ -36,3 +36,26 @@ describe("W1.1 — ruteo del webhook de Telegram", () => {
     expect(res.status).toBe(404);
   });
 });
+
+describe("W4.1 — ruteo del endpoint de estado", () => {
+  it("GET /challenges/:id/status responde 200 con un estado vacío para un reto nuevo", async () => {
+    const res = await worker.fetch(new Request("http://worker.local/challenges/reto-abc/status"), env);
+    expect(res.status).toBe(200);
+
+    const body = await res.json();
+    expect(body).toEqual({
+      challengeId: "reto-abc",
+      confirmationsCount: 0,
+      threshold: null,
+      consensusReached: false,
+    });
+  });
+
+  it("POST /challenges/:id/status (método no soportado) responde 404", async () => {
+    const res = await worker.fetch(
+      new Request("http://worker.local/challenges/reto-abc/status", { method: "POST" }),
+      env,
+    );
+    expect(res.status).toBe(404);
+  });
+});
