@@ -18,19 +18,28 @@
 import { InMemoryConfirmationStore } from "./confirmations";
 import { handleChallengeStatus } from "./status";
 import { handleTelegramWebhook } from "./telegram";
+import { InMemoryStore } from "./telegram/store";
 
 export interface Env {
   ENVIRONMENT: string;
   TELEGRAM_WEBHOOK_SECRET?: string;
+  /** Token del bot, de @BotFather. Sin esto el bot no puede contestar nada. */
+  TELEGRAM_BOT_TOKEN?: string;
   /** Clave de la cuenta operadora que firma `confirmResult` — W3.1, ver ./confirmTx.ts. */
   OPERATOR_PRIVATE_KEY?: string;
   /** RPC de Arbitrum Sepolia (Alchemy) usado por el writer operador — W3.1. */
   ARBITRUM_RPC_URL?: string;
   // Todos los secretos vienen de `wrangler secret put`, nunca hardcodeados (AGENTS.md).
-  // Pendiente: TELEGRAM_BOT_TOKEN.
 }
 
 const confirmationStore = new InMemoryConfirmationStore();
+
+/**
+ * Estado del bot: configuración por grupo y wallets vinculadas.
+ * En memoria por ahora — no sobrevive entre isolates de Workers. Migrar a KV es
+ * cambiar esta línea por `new CloudflareKvStore(env.BOT_KV)` (ver STACK.md §2.3).
+ */
+const botStore = new InMemoryStore();
 
 const CHALLENGE_STATUS_PATH = /^\/challenges\/([^/]+)\/status$/;
 
@@ -43,7 +52,7 @@ export default {
     }
 
     if (url.pathname === "/telegram/webhook" && request.method === "POST") {
-      return handleTelegramWebhook(request, env);
+      return handleTelegramWebhook(request, env, botStore);
     }
 
     const statusMatch = url.pathname.match(CHALLENGE_STATUS_PATH);

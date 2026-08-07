@@ -1,17 +1,29 @@
 /**
- * Webhook de Telegram — W1.1 (docs/backend-plan.md, Fase 1).
+ * Webhook de Telegram — W1.1 (docs/backend-plan.md, Fase 1) + enrutado de comandos.
  *
- * Responsabilidad única acá: validar que el request viene realmente de Telegram
- * (header X-Telegram-Bot-Api-Secret-Token) antes de aceptar cualquier payload.
- * El conteo de confirmaciones y la lógica de negocio se agregan en la Fase 2 (W2.1/W2.2)
- * — a propósito no está acá todavía, para no mezclar autenticación con lógica de negocio.
+ * Dos responsabilidades, en este orden y sin mezclarse:
+ *   1. Autenticar: que el request venga realmente de Telegram
+ *      (header X-Telegram-Bot-Api-Secret-Token). Falla cerrado.
+ *   2. Delegar el update al router (`./telegram/router.ts`), que decide qué hacer.
+ *
+ * El webhook SIEMPRE responde 200 tras autenticar, incluso si el manejo del comando
+ * falla: Telegram reintenta los updates que no reciben 200, y un error nuestro no
+ * debe convertirse en un bucle de reintentos.
  */
 
 import type { Env } from "./index";
+import { TelegramApi } from "./telegram/api";
+import { handleUpdate } from "./telegram/router";
+import type { KeyValueStore } from "./telegram/store";
+import type { TelegramUpdate } from "./telegram/types";
 
 const TELEGRAM_SECRET_HEADER = "X-Telegram-Bot-Api-Secret-Token";
 
-export async function handleTelegramWebhook(request: Request, env: Env): Promise<Response> {
+export async function handleTelegramWebhook(
+  request: Request,
+  env: Env,
+  store?: KeyValueStore,
+): Promise<Response> {
   const providedSecret = request.headers.get(TELEGRAM_SECRET_HEADER);
   const expectedSecret = env.TELEGRAM_WEBHOOK_SECRET;
 
@@ -21,16 +33,36 @@ export async function handleTelegramWebhook(request: Request, env: Env): Promise
     return new Response("Unauthorized", { status: 401 });
   }
 
-  let update: unknown;
+  let update: TelegramUpdate;
   try {
-    update = await request.json();
+    update = (await request.json()) as TelegramUpdate;
   } catch {
     return new Response("Invalid JSON", { status: 400 });
   }
 
-  // Placeholder de Fase 1: confirma que el update llegó y fue autenticado.
-  // Fase 2 reemplaza este cuerpo por el registro real de confirmaciones.
-  console.log("Telegram update recibido:", JSON.stringify(update));
+  // Sin token no se puede contestar nada. Se registra y se acepta igual para no
+  // provocar reintentos de Telegram — es un error de configuración nuestro.
+  if (!env.TELEGRAM_BOT_TOKEN) {
+    console.warn("telegram: falta TELEGRAM_BOT_TOKEN, el update se descarta sin responder");
+    return Response.json({ ok: true });
+  }
+
+  // Sin store el bot no tiene dónde guardar configuración ni wallets.
+  if (!store) {
+    console.warn("telegram: no hay store configurado, el update se descarta sin responder");
+    return Response.json({ ok: true });
+  }
+
+  try {
+    await handleUpdate(update, {
+      transport: new TelegramApi(env.TELEGRAM_BOT_TOKEN),
+      store,
+    });
+  } catch (error) {
+    // Se traga el error a propósito: ya autenticamos, así que devolvemos 200 y
+    // dejamos rastro en los logs. Un 500 acá haría que Telegram reintente en bucle.
+    console.error("telegram: fallo manejando el update:", error);
+  }
 
   return Response.json({ ok: true });
 }
