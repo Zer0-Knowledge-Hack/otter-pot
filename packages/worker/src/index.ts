@@ -1,14 +1,18 @@
 /**
  * Worker de OtterPot — orquestador entre el bot de Telegram / Mini App y ChallengePool.
  *
- * Estado actual (W0.1 — scaffold, docs/backend-plan.md): solo expone un health check.
- * El webhook real de Telegram se agrega en la Fase 1 (W1.1).
+ * Estado (docs/backend-plan.md):
+ *   W0.1 — scaffold + health check.
+ *   W1.1 — webhook de Telegram con validación de secret (ver ./telegram.ts).
  */
+
+import { handleTelegramWebhook } from "./telegram";
 
 export interface Env {
   ENVIRONMENT: string;
-  // Fase 1+: TELEGRAM_BOT_TOKEN, TELEGRAM_WEBHOOK_SECRET, OPERATOR_PRIVATE_KEY,
-  // ARBITRUM_RPC_URL (todos vía `wrangler secret put`, nunca hardcodeados).
+  TELEGRAM_WEBHOOK_SECRET?: string;
+  // Fase 1+: TELEGRAM_BOT_TOKEN, OPERATOR_PRIVATE_KEY, ARBITRUM_RPC_URL
+  // (todos vía `wrangler secret put`, nunca hardcodeados).
 }
 
 export default {
@@ -17,6 +21,10 @@ export default {
 
     if (url.pathname === "/health") {
       return Response.json({ status: "ok", environment: env.ENVIRONMENT });
+    }
+
+    if (url.pathname === "/telegram/webhook" && request.method === "POST") {
+      return handleTelegramWebhook(request, env);
     }
 
     return new Response("Not found", { status: 404 });

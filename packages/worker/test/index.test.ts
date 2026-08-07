@@ -17,3 +17,22 @@ describe("W0.1 — scaffold del worker", () => {
     expect(res.status).toBe(404);
   });
 });
+
+describe("W1.1 — ruteo del webhook de Telegram", () => {
+  const envConSecret: Env = { ENVIRONMENT: "test", TELEGRAM_WEBHOOK_SECRET: "el-secreto-correcto" };
+
+  it("POST /telegram/webhook con secret correcto llega al handler y responde 200", async () => {
+    const req = new Request("http://worker.local/telegram/webhook", {
+      method: "POST",
+      headers: { "X-Telegram-Bot-Api-Secret-Token": "el-secreto-correcto" },
+      body: JSON.stringify({ update_id: 1 }),
+    });
+    const res = await worker.fetch(req, envConSecret);
+    expect(res.status).toBe(200);
+  });
+
+  it("GET /telegram/webhook (método no soportado) responde 404, no 200", async () => {
+    const res = await worker.fetch(new Request("http://worker.local/telegram/webhook"), envConSecret);
+    expect(res.status).toBe(404);
+  });
+});

@@ -25,6 +25,8 @@ target/
 
 # Cloudflare Worker
 .wrangler/
+.dev.vars
+.dev.vars.*
 **/dist/
 
 # ============================================
