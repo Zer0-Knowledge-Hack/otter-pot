@@ -88,4 +88,19 @@ describe("W2.1 — conteo de confirmaciones y consenso", () => {
 
     expect(r.consensusReached).toBe(false); // GANADOR_A solo tiene 1 voto real (Bob)
   });
+
+  it("el umbral queda fijado en la primera confirmación — una llamada posterior con otro threshold no lo cambia", async () => {
+    // Se fija el umbral en 3 con la primera confirmación.
+    await registerConfirmation(store, CHALLENGE, ALICE, GANADOR_A, 3);
+    await registerConfirmation(store, CHALLENGE, BOB, GANADOR_A, 3);
+
+    // Esta llamada pasa threshold=2 — si el código usara el parámetro en vez del persistido,
+    // dispararía consenso acá con solo 2 votos, violando el umbral real fijado del reto.
+    const r = await registerConfirmation(store, CHALLENGE, CARLA, GANADOR_B, 2);
+
+    expect(r.consensusReached).toBe(false); // GANADOR_A tiene 2, GANADOR_B tiene 1 — ninguno llega a 3
+
+    const status = await store.get(CHALLENGE);
+    expect(status?.threshold).toBe(3); // el umbral persistido nunca cambió
+  });
 });

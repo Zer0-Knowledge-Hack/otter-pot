@@ -90,9 +90,13 @@ export async function registerConfirmation(
     counts.set(candidate, (counts.get(candidate) ?? 0) + 1);
   }
 
+  // Usa el umbral persistido (state.threshold), no el parámetro de esta llamada puntual —
+  // el umbral se fija con la primera confirmación y no puede cambiar después. Si se usara el
+  // parámetro, una llamada posterior con un threshold distinto podría disparar consenso para
+  // un candidato que no es el que realmente cruzó el umbral fijado originalmente.
   let winner: WalletAddress | undefined;
   for (const [candidate, count] of counts) {
-    if (count >= threshold) {
+    if (count >= state.threshold) {
       winner = candidate;
       break;
     }
