@@ -1,0 +1,21 @@
+name = "otter-pot-worker"
+main = "src/index.ts"
+compatibility_date = "2025-08-01"
+compatibility_flags = ["nodejs_compat"]
+
+# KV para estado de confirmaciones por reto (Fase 2 del plan — docs/backend-plan.md).
+# El id real de namespace se crea con `wrangler kv namespace create CONFIRMATIONS`
+# y se pega aquí antes de W2.1. Placeholder para que `wrangler dev` no truene mientras
+# no exista: se comenta hasta que el namespace real esté creado.
+# [[kv_namespaces]]
+# binding = "CONFIRMATIONS"
+# id = "<pendiente>"
+
+[vars]
+ENVIRONMENT = "development"
+
+# Secretos (NUNCA en este archivo, ver AGENTS.md):
+#   wrangler secret put TELEGRAM_BOT_TOKEN
+#   wrangler secret put TELEGRAM_WEBHOOK_SECRET
+#   wrangler secret put OPERATOR_PRIVATE_KEY
+#   wrangler secret put ARBITRUM_RPC_URL
