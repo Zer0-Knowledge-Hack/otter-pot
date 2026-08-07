@@ -23,6 +23,7 @@ import { execFileSync } from "child_process";
 import { parseArgs, resolveTarget } from "./otter";
 import { getPrivateKey } from "./utils/network";
 import { extractDeploymentInfo } from "./utils/contract";
+import { arbitrumNitro } from "../../nextjs/utils/scaffold-stylus/supportedChains";
 
 const LINUX_CONTRACTS = path
   .resolve(__dirname, "../contracts")
@@ -113,7 +114,7 @@ export default async function deployContractScript(
 
   const privateKey =
     (target.isLocal
-      ? (require("../../nextjs/utils/scaffold-stylus/supportedChains").arbitrumNitro.accounts[0] as { privateKey?: string }).privateKey ?? ""
+      ? (arbitrumNitro.accounts[0] as { privateKey?: string }).privateKey ?? ""
       : getPrivateKey("arbitrumSepolia")).trim() ?? "";
   
   if (!privateKey) throw new Error("Falta la clave privada para el deploy");
