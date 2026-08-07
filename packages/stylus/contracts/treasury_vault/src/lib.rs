@@ -7,7 +7,11 @@ extern crate alloc;
 pub mod contract {
     use alloy_primitives::{Address, U256};
     use alloy_sol_types::{sol, SolCall};
-    use stylus_sdk::{call, contract, evm, msg, prelude::*};
+    use stylus_sdk::{
+        call, contract, evm, msg,
+        prelude::*,
+        storage::{StorageAddress, StorageBool, StorageU256},
+    };
 
     // ── ERC-20 (USDC) ────────────────────────────────────────────────────────
     sol! {
@@ -65,7 +69,7 @@ pub mod contract {
         fn usdc_balance(&self, token: Address, who: Address) -> U256 {
             let call = IERC20::balanceOfCall { account: who };
             let data = call.abi_encode();
-            match call::static_call(&self, token, &data) {
+            match call::static_call(self, token, &data) {
                 Ok(out) => read_u256(&out),
                 Err(_) => U256::ZERO,
             }
@@ -157,7 +161,7 @@ pub mod contract {
             call::call(&mut *self, usdc, &data).map_err(|_| b"transferFrom_failed".to_vec())?;
 
             // Verificar el movimiento (robusto a variantes USDC sin bool).
-            let got = self.usdc_balance(&usdc, &contract::address());
+            let got = self.usdc_balance(usdc, contract::address());
             if got < assets {
                 return Err(b"usdc_not_transferred".to_vec());
             }
@@ -251,5 +255,12 @@ pub mod contract {
         pub fn usdc(&self) -> Address {
             self.usdc.get()
         }
+    }
+
+    fn read_u256(data: &[u8]) -> U256 {
+        if data.len() < 32 {
+            return U256::ZERO;
+        }
+        U256::from_be_slice(&data[..32])
     }
 }

@@ -22,7 +22,7 @@ mod contract {
     use stylus_sdk::{
         call, contract, evm, msg,
         prelude::*,
-        storage::{StorageAddress, StorageBool, StorageMap, StorageU256, StorageU8},
+        storage::{StorageAddress, StorageBool, StorageMap, StorageU256},
     };
 
     // ── Interfaces (USDC ERC-20 + TreasuryVault) ──────────────────────────────
@@ -34,7 +34,7 @@ mod contract {
         }
         interface ITreasuryVault {
             function deposit(uint256 assets) external returns (uint256);
-            function redeem_shares(uint256 shares, address to) external returns (uint256);
+            function redeemShares(uint256 shares, address to) external returns (uint256);
         }
     }
 
@@ -82,7 +82,7 @@ mod contract {
         pub creator: StorageAddress,
         pub required_deposit: StorageU256,
         pub deadline: StorageU256,
-        pub status: StorageU8,
+        pub status: StorageU256,
         pub winner: StorageAddress,
         pub treasury_shares: StorageU256,
         pub participant_count: StorageU256,
@@ -214,7 +214,7 @@ mod contract {
                 ch.creator.set(msg::sender());
                 ch.required_deposit.set(required_deposit);
                 ch.deadline.set(deadline);
-                ch.status.set(STATE_ABIERTO);
+                ch.status.set(U256::from(STATE_ABIERTO));
                 ch.participant_count
                     .set(U256::from(participants_list.len()));
                 ch.deposited_count.set(U256::ZERO);
@@ -250,7 +250,7 @@ mod contract {
             ) = {
                 let ch = self.challenges.setter(challenge_id);
                 (
-                    ch.status.get(),
+                    u8::try_from(ch.status.get()).unwrap(),
                     ch.participants.get(sender),
                     ch.has_deposited.get(sender),
                     ch.required_deposit.get(),
@@ -302,7 +302,7 @@ mod contract {
 
                 {
                     let mut ch = self.challenges.setter(challenge_id);
-                    ch.status.set(STATE_BLOQUEADO);
+                    ch.status.set(U256::from(STATE_BLOQUEADO));
                     ch.treasury_shares.set(shares);
 
                     evm::log(ChallengeLocked {
@@ -325,7 +325,10 @@ mod contract {
 
             let (status, treasury_shares) = {
                 let ch = self.challenges.setter(challenge_id);
-                (ch.status.get(), ch.treasury_shares.get())
+                (
+                    u8::try_from(ch.status.get()).unwrap(),
+                    ch.treasury_shares.get(),
+                )
             };
 
             validate_confirm_result(status, winner).map_err(|e| e.as_bytes().to_vec())?;
@@ -333,13 +336,13 @@ mod contract {
             // CEI: estado terminal antes de la llamada externa.
             {
                 let mut ch = self.challenges.setter(challenge_id);
-                ch.status.set(STATE_RESUELTO);
+                ch.status.set(U256::from(STATE_RESUELTO));
                 ch.winner.set(winner);
             }
 
             // Redimir shares (capital + yield), comisión y pagar al ganador.
             let vault = self.treasury_vault.get();
-            let rede = ITreasuryVault::redeem_sharesCall {
+            let rede = ITreasuryVault::redeemSharesCall {
                 shares: treasury_shares,
                 to: contract::address(),
             }
@@ -371,7 +374,7 @@ mod contract {
             let (status, treasury_shares, participant_count, deadline) = {
                 let ch = self.challenges.setter(challenge_id);
                 (
-                    ch.status.get(),
+                    u8::try_from(ch.status.get()).unwrap(),
                     ch.treasury_shares.get(),
                     ch.participant_count.get(),
                     ch.deadline.get(),
@@ -384,12 +387,12 @@ mod contract {
             // CEI: Reembolsado antes de la llamada externa.
             {
                 let mut ch = self.challenges.setter(challenge_id);
-                ch.status.set(STATE_REEMBOLSADO);
+                ch.status.set(U256::from(STATE_REEMBOLSADO));
             }
 
             // Redimir shares del vault al pool.
             let vault = self.treasury_vault.get();
-            let rede = ITreasuryVault::redeem_sharesCall {
+            let rede = ITreasuryVault::redeemSharesCall {
                 shares: treasury_shares,
                 to: contract::address(),
             }
@@ -419,7 +422,7 @@ mod contract {
             let (status, per_participant, is_participant, already_claimed) = {
                 let ch = self.challenges.setter(challenge_id);
                 (
-                    ch.status.get(),
+                    u8::try_from(ch.status.get()).unwrap(),
                     ch.treasury_shares.get(),
                     ch.participants.get(sender),
                     ch.claimed_refund.get(sender),
@@ -461,7 +464,7 @@ mod contract {
         // ── Read-only helpers ──────────────────────────────────────────────
 
         pub fn challenge_status(&self, challenge_id: U256) -> Result<u8, Vec<u8>> {
-            Ok(self.challenges.getter(challenge_id).status.get())
+            Ok(u8::try_from(self.challenges.getter(challenge_id).status.get()).unwrap())
         }
 
         pub fn is_operator(&self, operator: Address) -> Result<bool, Vec<u8>> {
@@ -476,3 +479,4 @@ mod contract {
         U256::from_be_slice(&data[..32])
     }
 }
+

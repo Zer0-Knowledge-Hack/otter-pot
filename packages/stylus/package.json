@@ -19,6 +19,8 @@
     "dev": "tsc --watch",
     "export-abi": "ts-node scripts/export_abi.ts",
     "info:networks": "ts-node scripts/test_network.ts",
+    "integration:usdc": "ts-node scripts/integration-test-usdc.ts",
+    "setup:contracts": "ts-node scripts/setup-contracts.ts",
     "lint": "eslint scripts --ext .ts",
     "lint:fix": "eslint scripts --ext .ts --fix",
     "new-module": "bash scripts/new_module.sh",
