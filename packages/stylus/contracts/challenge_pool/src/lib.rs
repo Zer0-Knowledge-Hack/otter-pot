@@ -15,9 +15,9 @@ mod contract {
     use alloy_primitives::{Address, U256};
     use alloy_sol_types::{sol, SolCall};
     use logic::{
-        refund_per_participant, resolve_payout, total_pool, validate_confirm_result,
-        validate_deposit, validate_refund, STATE_ABIERTO, STATE_BLOQUEADO, STATE_REEMBOLSADO,
-        STATE_RESUELTO,
+        refund_per_participant, resolve_payout, total_pool,
+        validate_confirm_result, validate_deposit, validate_refund, STATE_ABIERTO, STATE_BLOQUEADO,
+        STATE_REEMBOLSADO, STATE_RESUELTO,
     };
     use stylus_sdk::{
         call, contract, evm, msg,
@@ -73,6 +73,10 @@ mod contract {
         );
         event OperatorAdded(address indexed operator);
         event OperatorRemoved(address indexed operator);
+        event CommissionRateUpdated(
+            uint256 indexed previous_rate,
+            uint256 indexed new_rate
+        );
     }
 
     // ── Storage ───────────────────────────────────────────────────────────────
@@ -181,10 +185,12 @@ mod contract {
 
         pub fn set_commission_rate(&mut self, rate_bps: U256) -> Result<(), Vec<u8>> {
             self.require_owner()?;
-            if rate_bps > U256::from(1_000u64) {
-                return Err(b"rate_too_high".to_vec());
-            }
+            let previous_rate = self.base_commission_rate.get();
             self.base_commission_rate.set(rate_bps);
+            evm::log(CommissionRateUpdated {
+                previous_rate,
+                new_rate: rate_bps,
+            });
             Ok(())
         }
 
@@ -470,6 +476,10 @@ mod contract {
         pub fn is_operator(&self, operator: Address) -> Result<bool, Vec<u8>> {
             Ok(self.operators.get(operator))
         }
+
+        pub fn commission_rate(&self) -> Result<U256, Vec<u8>> {
+            Ok(self.base_commission_rate.get())
+        }
     }
 
     fn read_u256(data: &[u8]) -> U256 {
@@ -479,4 +489,3 @@ mod contract {
         U256::from_be_slice(&data[..32])
     }
 }
-

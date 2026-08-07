@@ -40,28 +40,30 @@ const USDC_ABI = [
   "function balanceOf(address) view returns (uint256)",
   "function transfer(address,uint256) returns (bool)",
   "function approve(address,uint256) returns (bool)",
-"function transferFrom(address,address,uint256) returns (bool)",
+  "function transferFrom(address,address,uint256) returns (bool)",
   "function mint(address,uint256) returns (bool)",
 ] as const;
 
 const POOL_ABI = [
   "function init(address,address,uint256) returns (bool)",
   "function addOperator(address) returns (bool)",
+  "function setCommissionRate(uint256) returns (bool)",
+  "function commissionRate() view returns (uint256)",
   "function createChallenge(uint256,uint256,address[]) returns (uint256)",
   "function deposit(uint256) returns (bool)",
   "function confirmResult(uint256,address) returns (bool)",
   "function refund(uint256) returns (bool)",
-"function claimRefund(uint256) returns (bool)",
+  "function claimRefund(uint256) returns (bool)",
   "function challengeStatus(uint256) view returns (uint8)",
   "function isOperator(address) view returns (bool)",
   "event ChallengeCreated(uint256 indexed, address indexed, uint256, uint256)",
   "event ChallengeLocked(uint256 indexed, uint256)",
   "event ChallengeResolved(uint256 indexed, address indexed, uint256, uint256)",
+  "event CommissionRateUpdated(uint256 indexed, uint256 indexed)",
 ] as const;
 
 const VAULT_ABI = [
   "function init(address) returns (bool)",
-"function pricePerShare() view returns (uint256)",
   "function totalAssets() view returns (uint256)",
   "function totalShares() view returns (uint256)",
   "function deposit(uint256) returns (uint256)",
@@ -89,6 +91,8 @@ interface PoolLike {
   deposit(challengeId: bigint): Promise<ContractTransactionResponse>;
   confirmResult(challengeId: bigint, winner: string): Promise<ContractTransactionResponse>;
   addOperator(operator: string): Promise<ContractTransactionResponse>;
+  setCommissionRate(rateBps: bigint): Promise<ContractTransactionResponse>;
+  commissionRate(): Promise<bigint>;
   challengeStatus(challengeId: bigint): Promise<number>;
   isOperator(operator: string): Promise<boolean>;
 }
@@ -228,7 +232,7 @@ async function main(): Promise<void> {
     console.log(`  ${label.padEnd(7)} ${signer.address}  → ${fmt(bal, decimals)}`);
   }
 
-// ── 2) Preparar fondos ─────────────────────────────────────────────────────
+  // ── 2) Preparar fondos ─────────────────────────────────────────────────────
   // En local no hay USDC real: minteamos mock y damos ETH de gas. En testnet los
   // participantes deben traer sus fondos, así que esta financiación se omite.
   console.log("\n── 2) Preparación de fondos ──");
@@ -262,8 +266,8 @@ async function main(): Promise<void> {
     }
     console.log(
       `  Saldos: alice=${fmt(await usdcAlice.balanceOf(alice.address), decimals)} ` +
-        `bob=${fmt(await usdcBob.balanceOf(bob.address), decimals)} ` +
-        `charlie=${fmt(await usdcCharlie.balanceOf(charlie.address), decimals)}`,
+      `bob=${fmt(await usdcBob.balanceOf(bob.address), decimals)} ` +
+      `charlie=${fmt(await usdcCharlie.balanceOf(charlie.address), decimals)}`,
     );
 
     // ── 2.5) Financiar gas nativo (ETH) a los participantes ─────────────────
@@ -286,6 +290,18 @@ async function main(): Promise<void> {
   } else {
     console.log("  testnet: no se financia nada; los participantes deben traer USDC en su balance.");
   }
+
+  // ── 2.5) Cambiar comisión ──────────────────────────────────────────────────
+  // Se cambia la comisión a 300 bps (3 %) antes de crear el reto para que la
+  // resolución use la nueva tasa y el payout sea verificable (300/10000 del total).
+  console.log("\n── 2.5) Cambiar comisión a 300 bps (3 %) ──");
+  const NEW_RATE_BPS = 300n;
+  const prevRate = await poolOwner.commissionRate();
+  console.log(`  Tasa actual: ${prevRate} bps`);
+  await (await poolOwner.setCommissionRate(NEW_RATE_BPS)).wait();
+  const confirmedRate = await poolOwner.commissionRate();
+  assert(confirmedRate === NEW_RATE_BPS, `La tasa no cambió: esperado ${NEW_RATE_BPS}, obtenido ${confirmedRate}`);
+  console.log(`  ✔ Tasa actualizada: ${prevRate} bps → ${confirmedRate} bps`);
 
   // ── 3) Crear reto ──────────────────────────────────────────────────────────
   console.log("\n── 3) Crear reto ──");
@@ -366,8 +382,15 @@ async function main(): Promise<void> {
   assert(charlieFinal === charlieBaseline + payout, `El ganador no recibió exactamente el payout (${charlieFinal} vs ${charlieBaseline + payout})`);
 
   const principal = totalDeposited;
+  // Expected commission at the active rate (300 bps = 3 % of recovered total).
+  const expectedCommission = (commission + payout) * NEW_RATE_BPS / 10_000n;
   console.log(`  payout+comisión = ${fmt(commission + payout, decimals)} vs capital = ${fmt(principal, decimals)}`);
-  console.log(`  ✔ El ganador recibió el premio (capital + yield − comisión)`);
+  console.log(`  Comisión esperada (${NEW_RATE_BPS} bps): ${fmt(expectedCommission, decimals)}, comisión real: ${fmt(commission, decimals)}`);
+  assert(
+    commission === expectedCommission,
+    `Comisión incorrecta: esperado ${fmt(expectedCommission, decimals)} al ${NEW_RATE_BPS} bps, obtenido ${fmt(commission, decimals)}`
+  );
+  console.log(`  ✔ El ganador recibió el premio (capital + yield − comisión) y la comisión coincide con ${NEW_RATE_BPS} bps`);
 
   // ── Resumen ───────────────────────────────────────────────────────────────
   console.log("\n============================================================");
