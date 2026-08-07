@@ -23,6 +23,12 @@ import type { ContractTransactionResponse, Log, Interface, Wallet } from "ethers
 import * as fs from "fs";
 import * as path from "path";
 import { parseArgs, resolveTarget, getSigner } from "./otter";
+import { config as dotenvConfig } from "dotenv";
+
+const envPath = path.resolve(__dirname, "../.env");
+if (fs.existsSync(envPath)) {
+  dotenvConfig({ path: envPath });
+}
 
 const STATE_RESUELTO = 2;
 const STATE_BLOQUEADO = 1;
@@ -226,7 +232,10 @@ async function main(): Promise<void> {
   // En local no hay USDC real: minteamos mock y damos ETH de gas. En testnet los
   // participantes deben traer sus fondos, así que esta financiación se omite.
   console.log("\n── 2) Preparación de fondos ──");
-  const deposit = ethers.parseUnits("25", decimals);
+  // El faucet público de Circle entrega 20 USDC por request, así que en testnet el
+  // depósito por defecto baja a 10 USDC. Se puede ajustar con --deposit.
+  const defaultDeposit = target.isLocal ? "25" : "10";
+  const deposit = ethers.parseUnits(args["deposit"] || defaultDeposit, decimals);
   const toFund = ethers.parseUnits("100", decimals);
 
   if (target.isLocal) {

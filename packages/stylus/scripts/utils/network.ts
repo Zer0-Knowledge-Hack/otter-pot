@@ -126,9 +126,11 @@ export function getPrivateKey(networkName: string): string {
         throw new Error("PRIVATE_KEY_SUPERPOSITION_TESTNET is not set");
       }
     default:
-      return (
-        process.env["PRIVATE_KEY"] ||
-        "0xb6b15c8cb491557369f3c7d2c287b053eb229daa9c22138887752191c9520659"
+      if (process.env["PRIVATE_KEY"]) {
+        return process.env["PRIVATE_KEY"];
+      }
+      throw new Error(
+        `PRIVATE_KEY not set for network "${networkName}". Las claves nunca se commitean al repo: defínala en .env (o PRIVATE_KEY).`,
       );
   }
 }
@@ -158,9 +160,11 @@ export const getAccountAddress = (networkName: string): Address | undefined => {
     case "superpositiontestnet":
       return process.env["ACCOUNT_ADDRESS_SUPERPOSITION_TESTNET"] as Address;
     default:
-      return (
-        (process.env["ACCOUNT_ADDRESS"] as Address) ||
-        "0x3f1Eae7D46d88F08fc2F8ed27FCb2AB183EB2d0E"
+      if (process.env["ACCOUNT_ADDRESS"]) {
+        return process.env["ACCOUNT_ADDRESS"] as Address;
+      }
+      throw new Error(
+        `ACCOUNT_ADDRESS not set for network "${networkName}". Las direcciones se resuelven de .env, no se hardcodean en el repo.`,
       );
   }
 };

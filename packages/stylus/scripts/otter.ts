@@ -16,6 +16,8 @@
 
 import { ethers } from "ethers";
 import type { JsonRpcProvider, Wallet } from "ethers";
+import * as fs from "fs";
+import * as path from "path";
 import { arbitrumNitro } from "../../nextjs/utils/scaffold-stylus/supportedChains";
 import { arbitrumSepolia } from "viem/chains";
 
@@ -86,6 +88,32 @@ export function resolveTarget(args: Record<string, string>): OtterTarget {
   return { chainId: LOCAL_CHAIN_ID, rpc: RPC_LOCAL_DEFAULT, isLocal: true };
 }
 
+export interface ParticipantRecord {
+  address: string;
+  privateKey: string;
+}
+
+export function participantsFilePath(chainId: number): string {
+  return path.resolve(__dirname, `../deployments/${chainId}_participants.json`);
+}
+
+export function loadParticipants(
+  chainId: number
+): Record<string, ParticipantRecord> | undefined {
+  const file = participantsFilePath(chainId);
+  if (!fs.existsSync(file)) return undefined;
+  try {
+    return JSON.parse(fs.readFileSync(file, "utf8")) as Record<
+      string,
+      ParticipantRecord
+    >;
+  } catch {
+    return undefined;
+  }
+}
+
+const PARTICIPANT_LABELS = ["alice", "bob", "charlie"];
+
 export function getSigner(target: OtterTarget, label: string, provider: JsonRpcProvider): Wallet {
   if (target.isLocal) {
     const holder = arbitrumNitro.accounts[
@@ -93,6 +121,11 @@ export function getSigner(target: OtterTarget, label: string, provider: JsonRpcP
     ] as { privateKey?: string } | undefined;
     if (!holder?.privateKey) throw new Error(`Falta la cuenta "${label}" en arbitrumNitro.accounts`);
     return new ethers.Wallet(holder.privateKey, provider);
+  }
+  if (label.startsWith("participant") || PARTICIPANT_LABELS.indexOf(label) >= 0) {
+    const rec = loadParticipants(target.chainId);
+    const entry: ParticipantRecord | undefined = rec?.[label];
+    if (entry?.privateKey) return new ethers.Wallet(entry.privateKey, provider);
   }
   const envName = TESTNET_SIGNER_ENV[label];
   if (!envName) throw new Error(`Actor "${label}" no mapeado a una variable de entorno en testnet`);

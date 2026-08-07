@@ -26,6 +26,10 @@ import { getPrivateKey } from "./utils/network";
 import { extractDeploymentInfo } from "./utils/contract";
 
 const RATE_BPS = 500n; // 500 bps = 5 %
+// Techo de gas por gas (gwei). En testnets la base fee puede subir por encima del
+// default de cargo stylus (0.02 gwei); este techo es solo un límite (se paga la
+// base fee real). Se ajusta con la env OTT_DEPLOY_MAXFEE_GWEI o flag --max-fee.
+const DEFAULT_MAX_FEE_GWEI = "1";
 
 const VAULT_ABI = ["function init(address) returns (bool)"] as const;
 const POOL_ABI = ["function init(address,address,uint256) returns (bool)"] as const;
@@ -53,7 +57,12 @@ function runWsl(script: string): string {
   });
 }
 
-async function cargoDeploy(name: string, rpc: string, privateKey: string): Promise<string> {
+async function cargoDeploy(
+  name: string,
+  rpc: string,
+  privateKey: string,
+  maxFeeGwei: string,
+): Promise<string> {
   console.log(`\n🚀 Desplegando ${name}…`);
   // Copia limpia del source a disco nativo de WSL (evita la lentitud del mount 9p
   // y garantiza una única raíz de workspace antes de compilar).
@@ -62,7 +71,7 @@ async function cargoDeploy(name: string, rpc: string, privateKey: string): Promi
     `mkdir -p ${TMP_WORKSPACE}/work`,
     `cp -r '${LINUX_CONTRACTS}' ${TMP_WORKSPACE}/work/`,
     `cd ${TMP_WORKSPACE}/work/contracts/${name}`,
-    `cargo stylus deploy --endpoint '${rpc}' --private-key '${privateKey}' --no-verify`,
+    `cargo stylus deploy --endpoint '${rpc}' --private-key '${privateKey}' --no-verify --max-fee-per-gas-gwei=${maxFeeGwei}`,
   ].join(" && ");
   const out = runWsl(script);
   const info = extractDeploymentInfo(out);
@@ -110,10 +119,27 @@ export default async function deployScript(
   const target = resolveTarget({ ...raw, ...(network ? { network } : {}) });
   const chainId = target.chainId;
 
-  const privateKey = target.isLocal
-    ? (arbitrumNitro.accounts[0] as { privateKey?: string }).privateKey ?? ""
-    : getPrivateKey("arbitrumSepolia");
+  const privateKey =
+    (target.isLocal
+      ? (arbitrumNitro.accounts[0] as { privateKey?: string }).privateKey ?? ""
+      : getPrivateKey("arbitrumSepolia")).trim() ?? "";
   if (!privateKey) throw new Error("Falta la clave privada para el deploy");
+  // cargo stylus / ethers esperan 0x + 64 hex; aceptamos también 64 hex sin 0x.
+  const normalizedKey =
+    (privateKey.startsWith("0x") || privateKey.startsWith("0X")
+      ? privateKey
+      : "0x" + privateKey).toLowerCase();
+
+  if (!target.isLocal) {
+    const derived = new ethers.Wallet(normalizedKey).address;
+    const expected = process.env["ACCOUNT_ADDRESS_SEPOLIA"];
+    if (expected && expected.toLowerCase() !== derived.toLowerCase()) {
+      throw new Error(
+        `La PRIVATE_KEY_SEPOLIA no corresponde a ACCOUNT_ADDRESS_SEPOLIA (derivada ${derived})`,
+      );
+    }
+    console.log(`   Owner: ${derived}  bal: ${(await new ethers.JsonRpcProvider(target.rpc).getBalance(derived)).toString()} wei`);
+  }
 
   const contracts = target.isLocal
     ? ["mock_usdc", "treasury_vault", "challenge_pool"]
@@ -127,9 +153,11 @@ export default async function deployScript(
   console.log("==========================================================");
 
   // 1) Deploy secuencial vía cargo stylus en WSL.
+  const maxFeeGwei =
+    raw["max-fee"] ?? process.env["OTT_DEPLOY_MAXFEE_GWEI"] ?? DEFAULT_MAX_FEE_GWEI;
   const record: Record<string, { address: string }> = {};
   for (const name of contracts) {
-    const address = await cargoDeploy(name, target.rpc, privateKey);
+    const address = await cargoDeploy(name, target.rpc, normalizedKey, maxFeeGwei);
     record[name] = { address };
   }
 
@@ -165,7 +193,7 @@ export default async function deployScript(
   }
 
   const provider: JsonRpcProvider = new ethers.JsonRpcProvider(target.rpc);
-  const owner = new ethers.Wallet(privateKey, provider);
+  const owner = new ethers.Wallet(normalizedKey, provider);
 
   console.log("\nInicializando contratos…");
   await initContracts(owner, usdcAddr, vaultAddr, poolAddr);
