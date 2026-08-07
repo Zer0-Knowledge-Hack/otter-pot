@@ -2,22 +2,22 @@
 #![cfg_attr(all(target_arch = "wasm32", not(feature = "export-abi")), no_main)]
 
 // `alloc` is a no_std dependency, only needed on WASM.
-#[cfg(target_arch = "wasm32")]
+#[cfg(any(target_arch = "wasm32", feature = "export-abi"))]
 extern crate alloc;
 
 /// Pure business logic: no EVM calls, testable on native target.
 pub mod logic;
 
 // ── Contract code, compiled only on the wasm32 target ───────────────────────
-#[cfg(target_arch = "wasm32")]
-mod contract {
+#[cfg(any(target_arch = "wasm32", feature = "export-abi"))]
+pub mod contract {
     use super::logic;
     use alloy_primitives::{Address, U256};
     use alloy_sol_types::{sol, SolCall};
     use logic::{
-        refund_per_participant, resolve_payout, total_pool,
-        validate_confirm_result, validate_deposit, validate_refund, STATE_ABIERTO, STATE_BLOQUEADO,
-        STATE_REEMBOLSADO, STATE_RESUELTO,
+        refund_per_participant, resolve_payout, total_pool, validate_confirm_result,
+        validate_deposit, validate_refund, STATE_ABIERTO, STATE_BLOQUEADO, STATE_REEMBOLSADO,
+        STATE_RESUELTO,
     };
     use stylus_sdk::{
         call, contract, evm, msg,
@@ -76,6 +76,10 @@ mod contract {
         event CommissionRateUpdated(
             uint256 indexed previous_rate,
             uint256 indexed new_rate
+        );
+        event TreasuryVaultUpdated(
+            address indexed previous_vault,
+            address indexed new_vault
         );
     }
 
@@ -190,6 +194,22 @@ mod contract {
             evm::log(CommissionRateUpdated {
                 previous_rate,
                 new_rate: rate_bps,
+            });
+            Ok(())
+        }
+
+        /// Permite al owner actualizar la dirección del TreasuryVault
+        /// (útil cuando se redeploya el vault sin redeployar el pool).
+        pub fn set_treasury_vault(&mut self, new_vault: Address) -> Result<(), Vec<u8>> {
+            self.require_owner()?;
+            if new_vault == Address::ZERO {
+                return Err(b"vault_is_zero".to_vec());
+            }
+            let previous_vault = self.treasury_vault.get();
+            self.treasury_vault.set(new_vault);
+            evm::log(TreasuryVaultUpdated {
+                previous_vault,
+                new_vault,
             });
             Ok(())
         }

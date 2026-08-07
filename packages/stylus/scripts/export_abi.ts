@@ -7,10 +7,32 @@ const contractsToExport = [
   {
     name: "ChallengePool",
     folder: "challenge_pool",
+    chainId: "412346",
   },
   {
     name: "TreasuryVault",
     folder: "treasury_vault",
+    chainId: "412346",
+  },
+  {
+    name: "ChallengePool",
+    folder: "challenge_pool",
+    chainId: "421614",
+  },
+  {
+    name: "TreasuryVault",
+    folder: "treasury_vault",
+    chainId: "421614",
+  },
+  {
+    name: "AaveStrategy",
+    folder: "aave_strategy",
+    chainId: "421614",
+  },
+  {
+    name: "MockStrategy",
+    folder: "mock_strategy",
+    chainId: "412346",
   }
 ];
 
@@ -21,9 +43,9 @@ async function main() {
   console.log("⚙️  Generando ABIs...");
 
   for (const contract of contractsToExport) {
-    console.log(`\n📦 Buscando despliegue para ${contract.name}...`);
+    console.log(`\n📦 Buscando despliegue para ${contract.name} en red ${contract.chainId}...`);
 
-    const deploymentData = getContractDataFromDeployments(deploymentDir, contract.folder);
+    const deploymentData = getContractDataFromDeployments(deploymentDir, contract.folder, contract.chainId);
 
     if (!deploymentData) {
       console.error(`❌ No se encontró despliegue (dirección) para ${contract.folder} en la carpeta 'deployments'. Asegúrate de haberlo desplegado primero.`);
