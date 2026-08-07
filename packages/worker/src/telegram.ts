@@ -72,6 +72,7 @@ export async function handleTelegramWebhook(
       store,
       chain,
       confirmations,
+      miniAppUrl: env.MINIAPP_URL,
     });
   } catch (error) {
     // Se traga el error a propósito: ya autenticamos, así que devolvemos 200 y

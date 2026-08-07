@@ -60,9 +60,17 @@ export interface TelegramChatMember {
   user: TelegramUser;
 }
 
+/**
+ * Un botón lleva `callback_data` (vuelve al bot) o `url` (abre el navegador).
+ *
+ * No existe una tercera opción viable en grupos: los botones `web_app`, que abrirían
+ * la Mini App embebida, solo funcionan en chats privados — Telegram los rechaza en
+ * grupos con «Web app can be used in private chats only» (`BOT.md` §9).
+ */
 export interface InlineKeyboardButton {
   text: string;
-  callback_data: string;
+  callback_data?: string;
+  url?: string;
 }
 
 export interface InlineKeyboardMarkup {

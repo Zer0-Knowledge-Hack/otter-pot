@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { InMemoryConfirmationStore } from "../src/confirmations";
-import { handleConfirmar, handleHistorial } from "../src/telegram/retos";
+import { handleConfirmar, handleDepositar, handleHistorial } from "../src/telegram/retos";
 import type { RetoRegistrado, RetosDeps } from "../src/telegram/retos";
 import { InMemoryStore, keys, writeJson } from "../src/telegram/store";
 import { saveConfig, DEFAULT_CONFIG } from "../src/telegram/config";
@@ -9,8 +9,10 @@ import type { ChainClient } from "../src/telegram/chain";
 import type { Address, Hex } from "viem";
 
 class TransporteFalso implements TelegramTransport {
+  readonly llamadas: { method: string; payload: Record<string, unknown> }[] = [];
   readonly textos: string[] = [];
   async call(method: string, payload: Record<string, unknown>): Promise<unknown> {
+    this.llamadas.push({ method, payload });
     if (method === "sendMessage" && typeof payload["text"] === "string") {
       this.textos.push(payload["text"]);
     }
@@ -164,5 +166,36 @@ describe("/historial", () => {
 
     await handleHistorial(deps, CHAT, ANA.userId, "@ana");
     expect(transport.ultimo).toContain("Ganados: <b>0</b> (0%)");
+  });
+});
+
+describe("/depositar", () => {
+  let transport: TransporteFalso;
+  let store: InMemoryStore;
+  let deps: RetosDeps;
+
+  beforeEach(async () => {
+    transport = new TransporteFalso();
+    store = new InMemoryStore();
+    deps = { transport, store };
+    await writeJson(store, keys.challenge(CHAT, "0"), RETO);
+  });
+
+  it("rechaza a quien no participa del reto", async () => {
+    await handleDepositar(deps, CHAT, 99, "0", "https://app.otterpot.dev");
+    expect(transport.ultimo).toContain("no te incluye");
+  });
+
+  it("arma el enlace con el reto y el monto en la query", async () => {
+    await handleDepositar(deps, CHAT, ANA.userId, "0", "https://app.otterpot.dev/");
+    const conBoton = transport.llamadas.find(
+      (c) => c.method === "sendMessage" && c.payload["reply_markup"] !== undefined,
+    );
+    const markup = conBoton?.payload["reply_markup"] as {
+      inline_keyboard: { text: string; url?: string }[][];
+    };
+    const url = markup.inline_keyboard[0]?.[0]?.url ?? "";
+    // La barra final de la base no debe duplicarse.
+    expect(url).toBe("https://app.otterpot.dev/depositar?reto=0&monto=25");
   });
 });

@@ -158,8 +158,14 @@ describe("router — comandos todavía no implementados", () => {
   });
 
   it("los que dependen de la Mini App lo dicen explícitamente", async () => {
-    await handleUpdate(mensaje("/depositar 1", CHAT_GRUPO, "group"), { transport, store });
+    await handleUpdate(mensaje("/verificar", CHAT_PRIVADO, "private"), { transport, store });
     expect(transport.ultimoTexto).toContain("Mini App");
+  });
+
+  it("/depositar avisa si todavía no hay página publicada", async () => {
+    // Sin `miniAppUrl` no se puede armar el enlace: mejor decirlo que mandar un botón roto.
+    await handleUpdate(mensaje("/depositar 1", CHAT_GRUPO, "group"), { transport, store });
+    expect(transport.ultimoTexto).toContain("no tengo publicada");
   });
 
   it("los que dependen del contrato lo dicen explícitamente", async () => {

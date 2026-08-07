@@ -556,3 +556,60 @@ export async function handleHistorial(
   );
 }
 
+
+// ─── /depositar ──────────────────────────────────────────────────────────────
+
+/**
+ * Manda al usuario a firmar su depósito en la Mini App.
+ *
+ * El bot NO puede depositar por nadie: `deposit` exige la firma del participante.
+ * Se usa un botón de tipo `url` en vez de `web_app` porque este último solo funciona
+ * en chats privados, y los retos viven en grupos (`BOT.md` §9).
+ */
+export async function handleDepositar(
+  deps: RetosDeps,
+  chatId: number,
+  userId: number,
+  retoId: string | undefined,
+  baseUrl: string | undefined,
+): Promise<void> {
+  const responder = (t: string): Promise<number | null> => sendMessage(deps.transport, chatId, t);
+
+  if (!retoId) {
+    await responder("Faltó el id. Ejemplo: <code>/depositar 0</code> — mirá <code>/retos</code>.");
+    return;
+  }
+  if (!baseUrl) {
+    await responder("Todavía no tengo publicada la página de depósito. Avisale a quien administra el bot.");
+    return;
+  }
+
+  const reto = await readJson<RetoRegistrado>(deps.store, keys.challenge(chatId, retoId));
+  if (!reto) {
+    await responder(`No encuentro el reto <code>${escapeHtml(retoId)}</code> en este grupo. Mirá <code>/retos</code>.`);
+    return;
+  }
+
+  // Solo los participantes pueden depositar: el contrato rechaza a cualquier otro.
+  const participa = reto.participantes.some((p) => p.userId === userId);
+  if (!participa) {
+    await responder("Este reto no te incluye, así que no tenés nada que depositar.");
+    return;
+  }
+
+  const url = `${baseUrl.replace(/\/$/, "")}/depositar?reto=${encodeURIComponent(reto.challengeId)}&monto=${reto.deposito}`;
+
+  await sendMessage(
+    deps.transport,
+    chatId,
+    [
+      `💸 <b>Depósito del reto #${reto.challengeId}</b>`,
+      "",
+      `Te toca poner <b>${reto.deposito} USDC</b>.`,
+      "",
+      "Son dos firmas: autorizar y depositar. El bot no puede hacerlo por vos —",
+      "la plata sale de tu wallet, así que la firma tiene que ser tuya.",
+    ].join("\n"),
+    { replyMarkup: { inline_keyboard: [[{ text: "💸 Depositar ahora", url }]] } },
+  );
+}

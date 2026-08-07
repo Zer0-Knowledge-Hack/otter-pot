@@ -27,6 +27,7 @@ import {
   handleConfirmar,
   handleReembolso,
   handleHistorial,
+  handleDepositar,
 } from "./retos";
 
 export interface RouterDeps {
@@ -34,6 +35,8 @@ export interface RouterDeps {
   store: KeyValueStore;
   /** Sin cadena configurada, los comandos que escriben avisan en vez de fallar. */
   chain?: ChainClient;
+  /** URL pública de la Mini App, para el botón de /depositar. */
+  miniAppUrl?: string;
   /** Conteo de consenso (W2.1). Sin esto, `/confirmar` no puede registrar votos. */
   confirmations?: ConfirmationStore;
 }
@@ -272,6 +275,9 @@ export async function handleUpdate(update: TelegramUpdate, deps: RouterDeps): Pr
     }
 
     case "depositar":
+      if (!enGrupo) return responder("Los retos viven en los grupos. Pedí el enlace en el grupo del reto.");
+      return handleDepositar(deps, chatId, userId, parsed.args[0], deps.miniAppUrl);
+
     case "verificar":
       return responder(NO_DISPONIBLE_MINIAPP);
 
