@@ -1508,6 +1508,13 @@ dependencies = [
 [[package]]
 name = "treasury_vault"
 version = "0.1.0"
+dependencies = [
+ "alloy-primitives",
+ "alloy-sol-types",
+ "hex",
+ "mini-alloc 0.4.2",
+ "stylus-sdk",
+]
 
 [[package]]
 name = "typenum"

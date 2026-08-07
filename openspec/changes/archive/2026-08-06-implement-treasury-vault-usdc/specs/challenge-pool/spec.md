@@ -1,20 +1,12 @@
-# challenge-pool Specification
+# challenge-pool Specification — Delta
 
 ## Purpose
 
-Define the behavior, states, deposits, resolution modes, and refunds for the challenge pool smart contract, ensuring secure handling of shared prize pools.
+Modify the challenge pool contract to move deposits and payouts through real USDC (ERC-20) and to integrate with the `TreasuryVault` for the redemption of the pool's shares when a challenge is resolved or refunded, replacing the current mock-yield MVP flow (SDD §6.5, §7.1, §8).
 
-## Requirements
+These are delta requirements. Un-modified requirements of the `challenge-pool` capability (challenge creation, deposits, resolution, refunds) remain in effect as described in the parent spec.
 
-### Requirement: Challenge Creation
-
-The system SHALL allow users to create a new challenge by specifying the required deposit, duration (deadline), participants, and resolution mode.
-
-#### Scenario: User creates a challenge
-
-- **WHEN** a user invokes challenge creation with valid parameters
-- **THEN** a new challenge is created in the "Abierto" state
-- **THEN** the system returns a unique identifier for the challenge
+## MODIFIED Requirements
 
 ### Requirement: Deposit Acceptance
 
@@ -46,7 +38,7 @@ The system SHALL, when enough confirmations establish a winner for a "Bloqueado"
 
 ### Requirement: Refund Processing
 
-The system SHALL, when refunding a "Bloqueado" challenge past its deadline without consensus, redeem its shares from the `TreasuryVault` and distribute the recovered USDC among the participants, without charging a commission.
+The system SHALL, when refunding a "Bloqueado" challenge past its deadline without consensus, redeem its shares from the `TreasuryVault` and distribute the recovered USDC proportionally among the participants, without charging a commission.
 
 #### Scenario: Deadline reached without resolution
 

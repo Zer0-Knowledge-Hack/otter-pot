@@ -29,39 +29,28 @@ export default async function deployScript(deployOptions: DeployOptions) {
   console.log(`📁 Deployment directory: ${config.deploymentDir}`);
   console.log(`\n`);
 
-  // Deploy a contract. Each deployStylusContract() call deploys ONE contract
+// Deploy a contract. Each deployStylusContract() call deploys ONE contract
   // (its own tx + address) and, on success, automatically:
-  // 1. saves the address/tx to packages/stylus/deployments/
+  // 1. saves the address/tx to packages/<stylus>/deployments/
   // 2. runs 'cargo stylus export-abi' and writes the ABI + address into
   //    packages/nextjs/contracts/deployedContracts.ts (keyed by chainId + name),
   //    so the Next.js frontend picks it up immediately.
+  //
+  // Deploy order: TreasuryVault first (challenge_pool.init() references its
+  // address), then ChallengePool. Both are initialized post-deploy by the
+  // backend (they expose one-shot `init()`, SDD §6/§7).
   await deployStylusContract({
-    contract: "your-contract", // folder name under packages/stylus/contracts/
-    constructorArgs: [config.deployerAddress!], // omit/empty if the contract has no #[constructor]
+    contract: "treasury_vault", // folder name under packages/stylus/contracts/
+    // treasury_vault.init(usdc) is called post-deploy by the Worker (no constructor args).
     ...deployOptions,
   });
-  // ─── Deploying MULTIPLE contracts ─────────────────────────────────────────
-  // 1. Scaffold each new contract: yarn new-module <name>
-  //    (creates packages/stylus/contracts/<name>/ and auto-registers it via members=["*"])
-  // 2. Add one deployStylusContract() call per contract below. They deploy
-  //    sequentially in a single 'yarn deploy', and each is auto-added to
-  //    deployedContracts.ts. (Stylus deploys one contract per tx/address — there is
-  //    no single-tx multi-deploy; 'at once' means one command, not one transaction.)
-  //
-  // await deployStylusContract({
-  //   contract: "counter",
-  //   constructorArgs: ["42", config.deployerAddress!, true],
-  //   pass your #[constructor] args in order
-  //   ...deployOptions,
-  // });
-  //
-  // Deploy the SAME crate again under a different key using 'name':
-  // await deployStylusContract({
-  //   contract: "your-contract",
-  //   name: "your-contract-v2",
-  //   constructorArgs: [config.deployerAddress!],
-  //   ...deployOptions,
-  // });
+  await deployStylusContract({
+    contract: "challenge_pool", // folder name under packages/stylus/contracts/
+    // challenge_pool.init(treasury_vault, base_commission_rate) is called
+    // post-deploy by the Worker, using the TreasuryVault address from above and
+    // the configured commission rate. No constructor args at deploy time.
+    ...deployOptions,
+  });
 
   // Print the deployed addresses
   console.log("\n\n");
