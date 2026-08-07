@@ -29,6 +29,10 @@ export interface Env {
   OPERATOR_PRIVATE_KEY?: string;
   /** RPC de Arbitrum Sepolia (Alchemy) usado por el writer operador — W3.1. */
   ARBITRUM_RPC_URL?: string;
+  /** RPC de la cadena donde vive el pool. En local: el Nitro DevNode. */
+  CHAIN_RPC_URL?: string;
+  /** Dirección del `ChallengePool` desplegado. */
+  CHALLENGE_POOL_ADDRESS?: string;
   // Todos los secretos vienen de `wrangler secret put`, nunca hardcodeados (AGENTS.md).
 }
 

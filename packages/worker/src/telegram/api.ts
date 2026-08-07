@@ -57,12 +57,17 @@ export function escapeHtml(text: string): string {
   return text.replace(/&/g, "&amp;").replace(/</g, "&lt;").replace(/>/g, "&gt;");
 }
 
+/**
+ * Envía un mensaje y devuelve su `message_id`, necesario para editarlo después
+ * (la lista del armado se refresca in situ en vez de spamear el grupo).
+ * Devuelve `null` si Telegram no informó el id.
+ */
 export async function sendMessage(
   transport: TelegramTransport,
   chatId: number,
   text: string,
   options: SendMessageOptions = {},
-): Promise<void> {
+): Promise<number | null> {
   const payload: Record<string, unknown> = {
     chat_id: chatId,
     text,
@@ -71,7 +76,10 @@ export async function sendMessage(
   if (options.replyMarkup) payload["reply_markup"] = options.replyMarkup;
   if (options.replyToMessageId) payload["reply_to_message_id"] = options.replyToMessageId;
 
-  await transport.call("sendMessage", payload);
+  const body = (await transport.call("sendMessage", payload)) as {
+    result?: { message_id?: number };
+  };
+  return body.result?.message_id ?? null;
 }
 
 /** Reemplaza el texto de un mensaje ya enviado — se usa para refrescar la lista del armado. */

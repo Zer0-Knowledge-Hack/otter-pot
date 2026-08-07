@@ -14,10 +14,22 @@ import type { KeyValueStore } from "./store";
 import { desvincular, enmascarar, esDireccionValida, obtenerWallet, vincular } from "./wallets";
 import { isGroupChat } from "./types";
 import type { TelegramUpdate } from "./types";
+import { parseCallback } from "./assembly";
+import type { ChainClient } from "./chain";
+import {
+  handleAbrir,
+  handleBotonArmado,
+  handleDescartar,
+  handleEstado,
+  handleNuevo,
+  handleRetos,
+} from "./retos";
 
 export interface RouterDeps {
   transport: TelegramTransport;
   store: KeyValueStore;
+  /** Sin cadena configurada, los comandos que escriben avisan en vez de fallar. */
+  chain?: ChainClient;
 }
 
 interface ParsedCommand {
@@ -87,9 +99,23 @@ const AYUDA_GRUPO = [
 
 export async function handleUpdate(update: TelegramUpdate, deps: RouterDeps): Promise<void> {
   if (update.callback_query) {
-    // Los botones del armado llegan acá. Siempre hay que responder o Telegram
-    // deja el reloj girando en el cliente (`BOT.md` §9).
-    await answerCallbackQuery(deps.transport, update.callback_query.id, NO_DISPONIBLE_PRONTO);
+    // Los botones del armado llegan acá. SIEMPRE hay que responder o Telegram
+    // deja el reloj girando en el cliente (`BOT.md` §9), así que el
+    // answerCallbackQuery va en un finally implícito: pase lo que pase, se contesta.
+    const cb = update.callback_query;
+    let aviso = "No entiendo ese botón.";
+    try {
+      const parsed = cb.data ? parseCallback(cb.data) : null;
+      const chatId = cb.message?.chat.id;
+      if (parsed && chatId !== undefined) {
+        const nombre = cb.from.username ? `@${cb.from.username}` : cb.from.first_name;
+        aviso = await handleBotonArmado(deps, parsed.accion, parsed.id, chatId, cb.from.id, nombre);
+      }
+    } catch (error) {
+      console.error("telegram: fallo manejando el botón:", error);
+      aviso = "Algo falló. Probá de nuevo.";
+    }
+    await answerCallbackQuery(deps.transport, cb.id, aviso);
     return;
   }
 
@@ -103,7 +129,10 @@ export async function handleUpdate(update: TelegramUpdate, deps: RouterDeps): Pr
   const userId = message.from.id;
   const enGrupo = isGroupChat(message.chat);
 
-  const responder = (text: string): Promise<void> => sendMessage(deps.transport, chatId, text);
+  // Descarta el message_id: solo el armado necesita editar su propio mensaje.
+  const responder = async (text: string): Promise<void> => {
+    await sendMessage(deps.transport, chatId, text);
+  };
 
   switch (parsed.name) {
     // ── Inicio y ayuda ──────────────────────────────────────────────────────
@@ -195,12 +224,29 @@ export async function handleUpdate(update: TelegramUpdate, deps: RouterDeps): Pr
       return responder("✅ Configuración restablecida a los valores por defecto. Mirá <code>/config</code>.");
     }
 
-    // ── Retos: enrutados, implementación en camino ──────────────────────────
-    case "nuevo":
+    // ── Retos ───────────────────────────────────────────────────────────────
+    case "nuevo": {
+      if (!enGrupo) return responder("Los retos viven en los grupos. Agregame a uno y probá ahí.");
+      const esAdmin = await isGroupAdmin(deps.transport, chatId, userId);
+      return handleNuevo(deps, chatId, userId, parsed.args, esAdmin);
+    }
+
     case "abrir":
+      if (!enGrupo) return responder("Los retos viven en los grupos. Agregame a uno y probá ahí.");
+      return handleAbrir(deps, chatId, userId, parsed.args[0]);
+
     case "descartar":
+      if (!enGrupo) return responder("Los retos viven en los grupos. Agregame a uno y probá ahí.");
+      return handleDescartar(deps, chatId, userId, parsed.args[0]);
+
     case "retos":
+      if (!enGrupo) return responder("Los retos viven en los grupos. Agregame a uno y probá ahí.");
+      return handleRetos(deps, chatId);
+
     case "estado":
+      if (!enGrupo) return responder("Los retos viven en los grupos. Agregame a uno y probá ahí.");
+      return handleEstado(deps, chatId, parsed.args[0]);
+
     case "confirmar":
     case "reembolso":
     case "historial":

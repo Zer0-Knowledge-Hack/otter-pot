@@ -13,6 +13,8 @@
 
 import type { Env } from "./index";
 import { TelegramApi } from "./telegram/api";
+import { configDesdeEnv, crearChainClient } from "./telegram/chain";
+import type { ChainClient } from "./telegram/chain";
 import { handleUpdate } from "./telegram/router";
 import type { KeyValueStore } from "./telegram/store";
 import type { TelegramUpdate } from "./telegram/types";
@@ -53,10 +55,20 @@ export async function handleTelegramWebhook(
     return Response.json({ ok: true });
   }
 
+  // La cadena es opcional: sin ella el bot funciona igual y los comandos que
+  // escriben avisan que no está configurada, en vez de reventar.
+  let chain: ChainClient | undefined;
+  try {
+    chain = crearChainClient(configDesdeEnv(env));
+  } catch (error) {
+    console.warn("telegram: sin cadena configurada —", error instanceof Error ? error.message : error);
+  }
+
   try {
     await handleUpdate(update, {
       transport: new TelegramApi(env.TELEGRAM_BOT_TOKEN),
       store,
+      chain,
     });
   } catch (error) {
     // Se traga el error a propósito: ya autenticamos, así que devolvemos 200 y

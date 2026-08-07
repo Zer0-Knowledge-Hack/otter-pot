@@ -81,7 +81,7 @@ Leyenda: ✅ funciona hoy · 🔧 necesita cambio de contrato · 📱 necesita M
 | `/descartar [id]` | ✅ | Cancela un armado. Gratis: no hay nada on-chain |
 | `/retos` | ✅ | Retos activos del grupo, con su estado |
 | `/estado [id]` | ✅ | Pozo, depósitos, confirmaciones y plazo |
-| `/depositar <id>` | 📱 | Enlace a la Mini App para firmar el depósito |
+| `/depositar <id>` | 📱 | Enlace `t.me` a la Mini App para firmar el depósito (ver §9) |
 | `/confirmar <id> @usuario` | ✅ | Registra tu voto por un ganador |
 | `/reembolso <id>` | ✅ | Dispara el reembolso si venció el plazo |
 | `/cancelar <id>` | 🔧 | Cancela un reto ya on-chain y devuelve lo depositado |
@@ -251,6 +251,8 @@ Las etapas 1 y 2 dan un ciclo completo demostrable.
 - **Validar siempre** `X-Telegram-Bot-Api-Secret-Token` — ya está en `telegram.ts`.
 - **Bot API con `fetch` directo**, sin framework.
 - **`callback_query`**: los botones del armado requieren manejar ese tipo de update además de `message`. Hay que responder con `answerCallbackQuery` o Telegram muestra el reloj colgado.
+- **🔴 Los botones `web_app` NO funcionan en grupos.** Telegram los admite solo en chats privados; en un grupo responde «Web app can be used in private chats only». Consecuencia directa para `/depositar`: en el grupo hay que mandar un **botón de tipo `url`** apuntando a `https://t.me/{bot}/{app}?startapp={challengeId}`, que abre la Mini App con el contexto del reto. Ese nombre corto `{app}` se obtiene registrando la Mini App con `/newapp` en @BotFather — o sea que `/newapp` **no es opcional** si el depósito se dispara desde el grupo.
+- **Registro en @BotFather, en este orden:** `/newbot` primero (la Mini App se cuelga de un bot existente) y `/newapp` después, cuando ya exista una URL pública HTTPS. `/newgame` es otra cosa: la plataforma vieja de juegos HTML5 con puntajes, no tiene nada que ver con Mini Apps.
 - **Comandos con sufijo**: en grupos llega `/estado@otterpot_bot`. Tolerarlo.
 - **Estado** en KV o Durable Objects (`STACK.md` §2.3):
   - `grupo:{chat_id}:config`
