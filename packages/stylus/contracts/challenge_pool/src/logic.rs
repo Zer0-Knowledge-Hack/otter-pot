@@ -89,15 +89,28 @@ pub fn validate_deposit(
 /// Returns `Ok(())` if `confirm_result` can proceed.
 ///
 /// Checks: challenge is Bloqueado, winner is non-zero.
+/// `winner_is_participant` debe venir de `challenge.participants.get(winner)`.
+///
+/// Sin esa comprobación, un operador puede dirigir el pozo a cualquier dirección: la
+/// función solo exigía `require_operator()` y una dirección distinta de cero, así que el
+/// contrato no calculaba ningún ganador — aceptaba el que le dictaran (SDD §11).
+///
+/// Nota para el caso de colecta (destino externo, ver `docs/PRODUCT.md` §4): cuando se
+/// implemente, la guarda no será "es participante" sino "está en la lista de destinos
+/// declarados al crear el reto". Hoy los retos solo pagan a un participante.
 pub fn validate_confirm_result(
     status: u8,
     winner: alloy_primitives::Address,
+    winner_is_participant: bool,
 ) -> Result<(), &'static str> {
     if status != STATE_BLOQUEADO {
         return Err("challenge_not_locked");
     }
     if winner == alloy_primitives::Address::ZERO {
         return Err("winner_is_zero_address");
+    }
+    if !winner_is_participant {
+        return Err("winner_not_participant");
     }
     Ok(())
 }
@@ -223,20 +236,37 @@ mod tests {
 
     #[test]
     fn confirm_accepted_when_locked() {
-        let res = validate_confirm_result(STATE_BLOQUEADO, addr(1));
+        let res = validate_confirm_result(STATE_BLOQUEADO, addr(1), true);
         assert!(res.is_ok());
     }
 
     #[test]
     fn confirm_rejected_if_not_locked() {
-        let res = validate_confirm_result(STATE_ABIERTO, addr(1));
+        let res = validate_confirm_result(STATE_ABIERTO, addr(1), true);
         assert_eq!(res.unwrap_err(), "challenge_not_locked");
     }
 
     #[test]
     fn confirm_rejected_if_winner_is_zero() {
-        let res = validate_confirm_result(STATE_BLOQUEADO, Address::ZERO);
+        let res = validate_confirm_result(STATE_BLOQUEADO, Address::ZERO, true);
         assert_eq!(res.unwrap_err(), "winner_is_zero_address");
+    }
+
+    /// Guarda central de seguridad (SDD §11): un operador relaya una decisión ya tomada,
+    /// no elige el destino de los fondos. Sin esta comprobación, cualquier operador podía
+    /// drenar un reto hacia una wallet arbitraria.
+    #[test]
+    fn confirm_rejected_if_winner_is_not_participant() {
+        let res = validate_confirm_result(STATE_BLOQUEADO, addr(9), false);
+        assert_eq!(res.unwrap_err(), "winner_not_participant");
+    }
+
+    /// El estado se valida antes que la pertenencia: un reto abierto falla por estado
+    /// aunque el ganador propuesto no sea participante.
+    #[test]
+    fn confirm_state_check_precedes_participant_check() {
+        let res = validate_confirm_result(STATE_ABIERTO, addr(9), false);
+        assert_eq!(res.unwrap_err(), "challenge_not_locked");
     }
 
     // ── 4. Resolution payout (commission model, SDD §8) ──────────────────────

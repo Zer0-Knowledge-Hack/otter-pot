@@ -10,7 +10,7 @@ pub mod contract {
     use stylus_sdk::{
         call, contract, evm, msg,
         prelude::*,
-        storage::{StorageAddress, StorageBool, StorageU256},
+        storage::{StorageAddress, StorageBool, StorageMap, StorageU256},
     };
 
     // ── ERC-20 (USDC) ────────────────────────────────────────────────────────
@@ -59,6 +59,11 @@ pub mod contract {
         pub total_assets: StorageU256,
         /// Participaciones en circulación.
         pub total_shares: StorageU256,
+        /// Participaciones por tenedor (SDD §7.2: cada reto canjea exactamente las suyas).
+        ///
+        /// Sin este libro mayor, `total_shares` es un contador global y cualquiera puede
+        /// canjear las participaciones de todos. Es la guarda que impide vaciar el vault.
+        pub shares_of: StorageMap<Address, StorageU256>,
         /// Bloquea depósitos y canjes.
         pub paused: StorageBool,
     }
@@ -130,6 +135,12 @@ pub mod contract {
             self.total_shares.get()
         }
 
+        /// Participaciones que posee una cuenta. El `ChallengePool` las consulta para
+        /// conciliar contra el `treasury_shares` que guarda por reto.
+        pub fn shares_of(&self, account: Address) -> U256 {
+            self.shares_of.get(account)
+        }
+
         /// Emite participaciones por USDC depositados. CEI: contabilidad antes del
         /// transfer; el llamador debe haber aprobado al vault.
         pub fn deposit(&mut self, assets: U256) -> Result<U256, Vec<u8>> {
@@ -149,6 +160,12 @@ pub mod contract {
             self.total_assets.set(total + assets);
             let new_shares = self.total_shares.get() + shares;
             self.total_shares.set(new_shares);
+
+            // Acreditar las participaciones a quien deposita. `redeem_shares` solo puede
+            // quemar contra este saldo, nunca contra el total global.
+            let holder = msg::sender();
+            let holder_shares = self.shares_of.get(holder) + shares;
+            self.shares_of.setter(holder).set(holder_shares);
 
             // Mover USDC desde el depositante.
             let usdc = self.usdc.get();
@@ -176,15 +193,26 @@ pub mod contract {
             Ok(shares)
         }
 
-        /// Quema shares y devuelve los USDC equivalentes. CEI: contabilidad antes del transfer.
+        /// Quema shares del llamador y devuelve los USDC equivalentes.
+        /// CEI: contabilidad antes del transfer.
+        ///
+        /// Solo se pueden quemar participaciones que el llamador posea (`shares_of`). Esto es
+        /// lo que impide que un tercero vacíe el vault: antes, la única guarda era contra
+        /// `total_shares` global, así que cualquiera podía canjear el capital de todos los
+        /// retos activos en una sola transacción.
         pub fn redeem_shares(&mut self, shares: U256, to: Address) -> Result<U256, Vec<u8>> {
             self.require_not_paused()?;
             if shares.is_zero() {
                 return Err(b"zero_shares".to_vec());
             }
+            let holder = msg::sender();
+            let holder_shares = self.shares_of.get(holder);
+            if shares > holder_shares {
+                return Err(b"insufficient_shares".to_vec());
+            }
             let current_shares = self.total_shares.get();
             if shares > current_shares {
-                return Err(b"insufficient_shares".to_vec());
+                return Err(b"insufficient_total_shares".to_vec());
             }
             if to == Address::ZERO {
                 return Err(b"zero_to".to_vec());
@@ -193,6 +221,7 @@ pub mod contract {
             let assets = (shares * price) / U256::from(1_000_000_000_000_000_000u128);
 
             self.total_shares.set(current_shares - shares);
+            self.shares_of.setter(holder).set(holder_shares - shares);
             let new_assets = self.total_assets.get().saturating_sub(assets);
             self.total_assets.set(new_assets);
 
