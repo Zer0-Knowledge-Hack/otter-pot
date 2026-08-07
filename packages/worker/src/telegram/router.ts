@@ -16,6 +16,7 @@ import { isGroupChat } from "./types";
 import type { TelegramUpdate } from "./types";
 import { parseCallback } from "./assembly";
 import type { ChainClient } from "./chain";
+import type { ConfirmationStore } from "../confirmations";
 import {
   handleAbrir,
   handleBotonArmado,
@@ -23,6 +24,9 @@ import {
   handleEstado,
   handleNuevo,
   handleRetos,
+  handleConfirmar,
+  handleReembolso,
+  handleHistorial,
 } from "./retos";
 
 export interface RouterDeps {
@@ -30,6 +34,8 @@ export interface RouterDeps {
   store: KeyValueStore;
   /** Sin cadena configurada, los comandos que escriben avisan en vez de fallar. */
   chain?: ChainClient;
+  /** Conteo de consenso (W2.1). Sin esto, `/confirmar` no puede registrar votos. */
+  confirmations?: ConfirmationStore;
 }
 
 interface ParsedCommand {
@@ -247,11 +253,23 @@ export async function handleUpdate(update: TelegramUpdate, deps: RouterDeps): Pr
       if (!enGrupo) return responder("Los retos viven en los grupos. Agregame a uno y probá ahí.");
       return handleEstado(deps, chatId, parsed.args[0]);
 
-    case "confirmar":
-    case "reembolso":
-    case "historial":
+    case "confirmar": {
       if (!enGrupo) return responder("Los retos viven en los grupos. Agregame a uno y probá ahí.");
-      return responder(NO_DISPONIBLE_PRONTO);
+      // La evidencia puede venir como foto con el comando en el epígrafe, o
+      // respondiendo a un mensaje que la tenga.
+      const tieneAdjunto =
+        (message.photo?.length ?? 0) > 0 || (message.reply_to_message?.photo?.length ?? 0) > 0;
+      return handleConfirmar(deps, chatId, userId, parsed.args, tieneAdjunto);
+    }
+
+    case "reembolso":
+      if (!enGrupo) return responder("Los retos viven en los grupos. Agregame a uno y probá ahí.");
+      return handleReembolso(deps, chatId, parsed.args[0]);
+
+    case "historial": {
+      const objetivo = message.from.username ? `@${message.from.username}` : message.from.first_name;
+      return handleHistorial(deps, chatId, userId, parsed.args[0] ?? objetivo);
+    }
 
     case "depositar":
     case "verificar":

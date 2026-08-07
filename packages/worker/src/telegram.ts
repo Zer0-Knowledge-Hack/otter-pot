@@ -12,6 +12,7 @@
  */
 
 import type { Env } from "./index";
+import type { ConfirmationStore } from "./confirmations";
 import { TelegramApi } from "./telegram/api";
 import { configDesdeEnv, crearChainClient } from "./telegram/chain";
 import type { ChainClient } from "./telegram/chain";
@@ -25,6 +26,7 @@ export async function handleTelegramWebhook(
   request: Request,
   env: Env,
   store?: KeyValueStore,
+  confirmations?: ConfirmationStore,
 ): Promise<Response> {
   const providedSecret = request.headers.get(TELEGRAM_SECRET_HEADER);
   const expectedSecret = env.TELEGRAM_WEBHOOK_SECRET;
@@ -69,6 +71,7 @@ export async function handleTelegramWebhook(
       transport: new TelegramApi(env.TELEGRAM_BOT_TOKEN),
       store,
       chain,
+      confirmations,
     });
   } catch (error) {
     // Se traga el error a propósito: ya autenticamos, así que devolvemos 200 y

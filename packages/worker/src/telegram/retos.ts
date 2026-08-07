@@ -30,6 +30,9 @@ import { keys, readJson, writeJson } from "./store";
 import type { KeyValueStore } from "./store";
 import { obtenerWallet } from "./wallets";
 import type { Address } from "viem";
+import { registerConfirmation } from "../confirmations";
+import type { ConfirmationStore } from "../confirmations";
+import { buildAndSendConfirmResult } from "../confirmTx";
 
 /** Reto ya creado en la cadena, indexado por el grupo que lo abrió. */
 export interface RetoRegistrado {
@@ -46,7 +49,18 @@ export interface RetosDeps {
   transport: TelegramTransport;
   store: KeyValueStore;
   chain?: ChainClient;
+  /** Conteo de consenso — el mismo módulo que ya existía para el worker (W2.1). */
+  confirmations?: ConfirmationStore;
 }
+
+/** Estadísticas acumuladas de un usuario, para `/historial`. */
+export interface Historial {
+  jugados: number;
+  ganados: number;
+  totalMovido: number;
+}
+
+const HISTORIAL_VACIO: Historial = { jugados: 0, ganados: 0, totalMovido: 0 };
 
 const SIN_CADENA =
   "No tengo la cadena configurada, así que no puedo escribir el reto. Avisale a quien administra el bot.";
@@ -324,6 +338,220 @@ export async function handleEstado(
       "",
       "<b>Participantes</b>",
       ...reto.participantes.map((p) => `• ${p.nombre}`),
+    ].join("\n"),
+  );
+}
+
+// ─── /confirmar ──────────────────────────────────────────────────────────────
+
+/** Busca un participante por su mención (@usuario) o por su nombre visible. */
+function buscarParticipante(
+  reto: RetoRegistrado,
+  mencion: string,
+): RetoRegistrado["participantes"][number] | undefined {
+  const buscado = mencion.trim().toLowerCase().replace(/^@/, "");
+  return reto.participantes.find((p) => p.nombre.toLowerCase().replace(/^@/, "") === buscado);
+}
+
+export async function handleConfirmar(
+  deps: RetosDeps,
+  chatId: number,
+  userId: number,
+  args: string[],
+  tieneAdjunto: boolean,
+): Promise<void> {
+  const responder = (t: string): Promise<number | null> => sendMessage(deps.transport, chatId, t);
+
+  const retoId = args[0];
+  const mencion = args[1];
+  if (!retoId || !mencion) {
+    await responder("Faltan datos. Ejemplo: <code>/confirmar 0 @ana</code>");
+    return;
+  }
+
+  const reto = await readJson<RetoRegistrado>(deps.store, keys.challenge(chatId, retoId));
+  if (!reto) {
+    await responder(`No encuentro el reto <code>${escapeHtml(retoId)}</code> en este grupo. Mirá <code>/retos</code>.`);
+    return;
+  }
+
+  // Solo confirman quienes pusieron plata: el contrato tampoco aceptaría a otro.
+  const votante = reto.participantes.find((p) => p.userId === userId);
+  if (!votante) {
+    await responder("Este reto no te incluye. Solo confirman quienes pusieron plata.");
+    return;
+  }
+
+  const config = await getConfig(deps.store, chatId);
+  if (config.evidencia === "obligatoria" && !tieneAdjunto) {
+    await responder("Este grupo exige adjuntar prueba. Mandá la foto con <code>/confirmar …</code> en el epígrafe.");
+    return;
+  }
+
+  const ganador = buscarParticipante(reto, mencion);
+  if (!ganador) {
+    await responder(
+      `No encuentro a ${escapeHtml(mencion)} entre los participantes. Mirá <code>/estado ${escapeHtml(retoId)}</code>.`,
+    );
+    return;
+  }
+
+  if (!deps.confirmations) {
+    await responder("No tengo dónde guardar el conteo. Avisale a quien administra el bot.");
+    return;
+  }
+
+  const resultado = await registerConfirmation(
+    deps.confirmations,
+    reto.challengeId,
+    votante.wallet,
+    ganador.wallet,
+    reto.umbral,
+  );
+
+  if (!resultado.accepted) {
+    await responder("No pude registrar tu voto: tu wallet no es válida. Revisá <code>/miwallet</code>.");
+    return;
+  }
+  if (resultado.alreadyTriggered) {
+    await responder("Este reto ya se resolvió. No hacen falta más confirmaciones.");
+    return;
+  }
+  if (!resultado.consensusReached) {
+    await responder(
+      `🗳 Voto registrado: <b>${escapeHtml(votante.nombre)}</b> → <b>${escapeHtml(ganador.nombre)}</b>\nFaltan confirmaciones para llegar a ${reto.umbral}.`,
+    );
+    return;
+  }
+
+  if (!deps.chain) {
+    await responder("Se alcanzó el consenso, pero no tengo la cadena configurada para resolverlo.");
+    return;
+  }
+
+  await responder(`🎉 Consenso alcanzado para <b>${escapeHtml(ganador.nombre)}</b>. Resolviendo en la cadena…`);
+
+  try {
+    // Se reusa la guarda de `confirmTx.ts`: vuelve a leer el consenso y aborta si
+    // el ganador no coincide exactamente. Es la validación más importante del worker,
+    // así que no se duplica acá — se llama a la que ya está probada.
+    const txHash = await buildAndSendConfirmResult(
+      {
+        store: deps.confirmations,
+        challengeId: reto.challengeId,
+        expectedWinner: ganador.wallet,
+        contractAddress: deps.chain.poolAddress,
+      },
+      deps.chain.writer,
+    );
+
+    await registrarEnHistorial(deps.store, reto, ganador.userId);
+
+    await responder(
+      [
+        `✅ <b>Reto #${reto.challengeId} resuelto</b>`,
+        "",
+        `🏆 Ganó <b>${escapeHtml(ganador.nombre)}</b>`,
+        `💰 Pozo de ${reto.deposito * reto.participantes.length} USDC, menos la comisión`,
+        "",
+        `<code>${escapeHtml(txHash)}</code>`,
+      ].join("\n"),
+    );
+  } catch (error) {
+    const motivo = error instanceof Error ? error.message : String(error);
+    await responder(`No pude resolver en la cadena: ${escapeHtml(motivo)}\nEl reto no cambió de estado.`);
+  }
+}
+
+/** Suma el reto al historial de cada participante, marcando al ganador. */
+async function registrarEnHistorial(
+  store: KeyValueStore,
+  reto: RetoRegistrado,
+  ganadorUserId: number,
+): Promise<void> {
+  const pozo = reto.deposito * reto.participantes.length;
+  for (const p of reto.participantes) {
+    const previo = (await readJson<Historial>(store, keys.userHistory(p.userId))) ?? HISTORIAL_VACIO;
+    await writeJson(store, keys.userHistory(p.userId), {
+      jugados: previo.jugados + 1,
+      ganados: previo.ganados + (p.userId === ganadorUserId ? 1 : 0),
+      totalMovido: previo.totalMovido + pozo,
+    });
+  }
+}
+
+// ─── /reembolso ──────────────────────────────────────────────────────────────
+
+export async function handleReembolso(
+  deps: RetosDeps,
+  chatId: number,
+  retoId: string | undefined,
+): Promise<void> {
+  const responder = (t: string): Promise<number | null> => sendMessage(deps.transport, chatId, t);
+
+  if (!retoId) {
+    await responder("Faltó el id. Ejemplo: <code>/reembolso 0</code>");
+    return;
+  }
+  const reto = await readJson<RetoRegistrado>(deps.store, keys.challenge(chatId, retoId));
+  if (!reto) {
+    await responder(`No encuentro el reto <code>${escapeHtml(retoId)}</code> en este grupo.`);
+    return;
+  }
+  if (!deps.chain) {
+    await responder(SIN_CADENA);
+    return;
+  }
+
+  await responder("⛓ Pidiendo el reembolso…");
+
+  try {
+    const txHash = await deps.chain.reembolsar(BigInt(reto.challengeId));
+    await responder(
+      [
+        `↩️ <b>Reto #${reto.challengeId} reembolsado</b>`,
+        "",
+        "Cada participante recibe lo suyo de vuelta, sin comisión.",
+        "",
+        `<code>${escapeHtml(txHash)}</code>`,
+      ].join("\n"),
+    );
+  } catch (error) {
+    const motivo = error instanceof Error ? error.message : String(error);
+    // El caso más común: todavía no venció el plazo y el contrato lo rechaza.
+    await responder(`No pude reembolsar: ${escapeHtml(motivo)}\nRevisá que el plazo haya vencido.`);
+  }
+}
+
+// ─── /historial ──────────────────────────────────────────────────────────────
+
+export async function handleHistorial(
+  deps: RetosDeps,
+  chatId: number,
+  userId: number,
+  nombre: string,
+): Promise<void> {
+  const h = (await readJson<Historial>(deps.store, keys.userHistory(userId))) ?? HISTORIAL_VACIO;
+
+  if (h.jugados === 0) {
+    await sendMessage(
+      deps.transport,
+      chatId,
+      `${escapeHtml(nombre)} todavía no jugó ningún reto resuelto. Empezá con <code>/nuevo</code>.`,
+    );
+    return;
+  }
+
+  const porcentaje = Math.round((h.ganados / h.jugados) * 100);
+  await sendMessage(
+    deps.transport,
+    chatId,
+    [
+      `🦦 <b>Historial de ${escapeHtml(nombre)}</b>`,
+      "",
+      `🎯 Jugados: <b>${h.jugados}</b>`,
+      `🏆 Ganados: <b>${h.ganados}</b> (${porcentaje}%)`,
+      `💰 Movido en pozos: <b>${h.totalMovido} USDC</b>`,
     ].join("\n"),
   );
 }

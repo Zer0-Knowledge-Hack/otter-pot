@@ -56,7 +56,7 @@ export default {
     }
 
     if (url.pathname === "/telegram/webhook" && request.method === "POST") {
-      return handleTelegramWebhook(request, env, botStore);
+      return handleTelegramWebhook(request, env, botStore, confirmationStore);
     }
 
     const statusMatch = url.pathname.match(CHALLENGE_STATUS_PATH);

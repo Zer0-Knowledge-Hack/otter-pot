@@ -14,6 +14,7 @@
 import { createPublicClient, createWalletClient, defineChain, http, parseAbi } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import type { Address, Chain, Hex, PublicClient } from "viem";
+import type { ConfirmResultWriter } from "../confirmTx";
 
 export const CHALLENGE_POOL_ABI = parseAbi([
   "function createChallenge(uint256 requiredDeposit, uint256 deadline, address[] participants) returns (uint256)",
@@ -90,6 +91,14 @@ export interface ChainClient {
   crearReto(deposito: bigint, deadline: bigint, participantes: Address[]): Promise<{ challengeId: bigint; txHash: Hex }>;
   estadoDeReto(challengeId: bigint): Promise<number>;
   reembolsar(challengeId: bigint): Promise<Hex>;
+  /**
+   * Dirección del pool y emisor firmado, expuestos para que el flujo de
+   * confirmación reuse `buildAndSendConfirmResult` de `confirmTx.ts` — que ya
+   * tiene la guarda que impide enviar un ganador distinto al del consenso.
+   * Duplicar esa validación acá sería crear una segunda fuente de verdad.
+   */
+  readonly poolAddress: Address;
+  readonly writer: ConfirmResultWriter;
 }
 
 export function crearChainClient(config: ChainConfig): ChainClient {
@@ -101,6 +110,22 @@ export function crearChainClient(config: ChainConfig): ChainClient {
   const walletClient = createWalletClient({ account, chain, transport });
 
   return {
+    poolAddress: config.poolAddress,
+
+    // El writer que consume `confirmTx.ts`: recibe una llamada YA validada.
+    writer: {
+      async writeContract(call) {
+        return walletClient.writeContract({
+          address: call.address,
+          abi: call.abi,
+          functionName: call.functionName,
+          args: call.args,
+          account,
+          chain,
+        });
+      },
+    },
+
     async crearReto(deposito, deadline, participantes) {
       const hash = await walletClient.writeContract({
         address: config.poolAddress,
