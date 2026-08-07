@@ -5,7 +5,8 @@
     "workspaces": {
         "packages": [
             "packages/stylus",
-            "packages/nextjs"
+            "packages/nextjs",
+            "packages/worker"
         ]
     },
     "scripts": {
@@ -36,6 +37,10 @@
         "vercel": "yarn workspace @ss/nextjs vercel",
         "vercel:yolo": "yarn workspace @ss/nextjs vercel:yolo",
         "verify": "yarn workspace @ss/stylus verify",
+        "worker:dev": "yarn workspace @ss/worker dev",
+        "worker:deploy": "yarn workspace @ss/worker deploy",
+        "worker:lint": "yarn workspace @ss/worker lint",
+        "worker:test": "yarn workspace @ss/worker test",
         "openspec:propose": "openspec change create",
         "openspec:apply": "openspec change apply",
         "openspec:archive": "openspec change archive",
