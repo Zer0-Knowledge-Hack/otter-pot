@@ -19,6 +19,7 @@ Un solo monorepo, clonado a partir del template de Scaffold-Stylus (yarn workspa
   /nextjs            # Landing page + Telegram Mini App (incluido en el template)
                        # Next.js + RainbowKit + Wagmi + TailwindCSS
   /worker            # Bot de Telegram + orquestador — Cloudflare Workers (TypeScript)
+  /sweeper           # Tarea programada (Cron) para mover fondos a estrategia de rendimiento
 /docs
   SDD.md             # Especificación de diseño — fuente de verdad de negocio/arquitectura
   diagrams/          # Diagramas exportados si se necesitan fuera de SDD.md
@@ -39,9 +40,9 @@ Actualizar este árbol en cuanto la estructura real del repo se aleje de esta pr
 
 **Worker (Cloudflare):**
 
-- `wrangler dev` — entorno local de desarrollo del bot/orquestador.
+- `wrangler dev` — entorno local de desarrollo del bot/orquestador y del sweeper.
 - `wrangler deploy` — despliegue a Cloudflare.
-- `npm test` — pruebas del backend.
+- `npm test` — pruebas del backend y scripts automatizados.
 
 ## Convenciones de código
 

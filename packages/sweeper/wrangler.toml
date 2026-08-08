@@ -1,0 +1,18 @@
+name = "otter-pot-sweeper"
+main = "src/index.ts"
+compatibility_date = "2025-08-01"
+compatibility_flags = ["nodejs_compat"]
+
+[triggers]
+crons = ["0 */12 * * *"]
+
+[vars]
+ENVIRONMENT = "development"
+VAULT_ADDRESS = "0x0000000000000000000000000000000000000000" # TODO: Update with real address
+USDC_ADDRESS = "0x75faf114eafb1BDbe2f0316DF893fd58CE46AA4d" # Circle USDC on Arbitrum Sepolia
+CHAIN_ID = "421614" # Arbitrum Sepolia
+SWEEP_THRESHOLD_USDC = "10"
+
+# Secretos (NUNCA en este archivo, ver AGENTS.md):
+#   wrangler secret put ADMIN_PRIVATE_KEY
+#   wrangler secret put ARBITRUM_RPC_URL
