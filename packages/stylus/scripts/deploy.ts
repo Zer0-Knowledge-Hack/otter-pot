@@ -214,17 +214,13 @@ export default async function deployScript(
     console.log(`   Owner: ${derived}  bal: ${(await new ethers.JsonRpcProvider(target.rpc).getBalance(derived)).toString()} wei`);
   }
 
-  // En testnet hay dos caminos, y el que se toma depende de si se indicó un USDC:
+  // Los mocks van SOLO en local, nunca en testnet (SDD v6 §6.5 y §7.3.3).
   //
-  //   · con --usdc (o USDC_ADDRESS): el USDC real de la red, con la estrategia de
-  //     Aave apuntando al pool oficial. Es el que rinde de verdad.
-  //   · sin indicarlo: mock de USDC y de estrategia. El USDC real de una testnet
-  //     también se pide por faucet, así que este camino permite probar el ciclo
-  //     completo sin depender de eso.
-  //
-  // En local siempre van los mocks: no hay un Aave al que apuntar.
-  const usdcIndicado = raw["usdc"] ?? process.env["USDC_ADDRESS"];
-  const usaMock = target.isLocal || !usdcIndicado;
+  // En Arbitrum Sepolia se opera con el USDC de Circle y con Aave V3 real: la spec
+  // es explícita en que la demo debe correr contra el protocolo, no contra un
+  // simulacro. El USDC de prueba se obtiene del faucet de Circle o del de Aave
+  // (SDD §7.3.2), así que no hace falta desplegar un mock para tener fondos.
+  const usaMock = target.isLocal;
   const contracts = usaMock
     ? ["mock_usdc", "mock_strategy", "treasury_vault", "challenge_pool"]
     : ["treasury_vault", "challenge_pool", "aave_strategy"];
