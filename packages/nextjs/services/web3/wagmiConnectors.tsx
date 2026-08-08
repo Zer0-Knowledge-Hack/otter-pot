@@ -1,13 +1,13 @@
 import { connectorsForWallets } from "@rainbow-me/rainbowkit";
 import {
   braveWallet,
-  coinbaseWallet,
   ledgerWallet,
   metaMaskWallet,
   rainbowWallet,
   safeWallet,
   walletConnectWallet,
 } from "@rainbow-me/rainbowkit/wallets";
+// coinbaseWallet omitido: tira @coinbase/cdp-sdk → @x402/* (peer deps opcionales) y rompe el build.
 import { rainbowkitBurnerWallet } from "burner-connector";
 import * as chains from "viem/chains";
 import { arbitrumNitro } from "~~/utils/scaffold-stylus/supportedChains";
@@ -28,7 +28,6 @@ const wallets = [
   metaMaskWallet,
   walletConnectWallet,
   ledgerWallet,
-  coinbaseWallet,
   rainbowWallet,
   safeWallet,
 ];
@@ -37,8 +36,7 @@ const wallets = [
  * wagmi connectors for the wagmi context
  */
 export const wagmiConnectors = () => {
-  // Only create connectors on client-side to avoid SSR issues
-  // TODO: update when https://github.com/rainbow-me/rainbowkit/issues/2476 is resolved
+  // Client-only (ClientProviders ya desactiva SSR de Wagmi)
   if (typeof window === "undefined") {
     return [];
   }
@@ -51,7 +49,7 @@ export const wagmiConnectors = () => {
       },
     ],
     {
-      appName: "scaffold-stylus",
+      appName: "OtterPot",
       projectId: scaffoldConfig.walletConnectProjectId,
     },
   );
