@@ -1,0 +1,35 @@
+# Copiar a `.dev.vars` y completar. Ese archivo esta gitignoreado: nunca se commitea.
+# En produccion estos valores van con `wrangler secret put`, no en un archivo.
+
+# ── Telegram ──────────────────────────────────────────────────────────────────
+# Token que da @BotFather con /newbot.
+TELEGRAM_BOT_TOKEN=
+
+# Secreto del webhook: Telegram lo manda en el header X-Telegram-Bot-Api-Secret-Token
+# y el worker rechaza todo lo que no coincida. Generar uno al azar:
+#   node -e "console.log(require('crypto').randomBytes(24).toString('base64url'))"
+TELEGRAM_WEBHOOK_SECRET=
+
+ENVIRONMENT=development
+
+# ── Cadena ────────────────────────────────────────────────────────────────────
+# Arbitrum Sepolia. Para el devnode local: http://127.0.0.1:8547 y CHAIN_ID=412346
+CHAIN_RPC_URL=https://sepolia-rollup.arbitrum.io/rpc
+CHAIN_ID=421614
+
+# Contratos desplegados (SDD v6 §5.3.1).
+CHALLENGE_POOL_ADDRESS=0xbc0ce54d80b3f95067285297f6ec052e79ecef46
+
+# USDC de Circle en Arbitrum Sepolia, 6 decimales. Se lee para escalar los montos.
+USDC_ADDRESS=0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d
+
+# Cuenta operadora: wallet de testnet dedicada y descartable, NUNCA una con fondos
+# reales. Tiene que estar registrada con addOperator() por el owner del pool, o
+# /confirmar va a fallar al resolver.
+OPERATOR_PRIVATE_KEY=
+
+# ── Mini App ──────────────────────────────────────────────────────────────────
+# URL publica de la pagina de deposito. En desarrollo sale de:
+#   cloudflared tunnel --url http://127.0.0.1:3000
+# Es efimera: si cloudflared se reinicia, cambia y hay que actualizarla.
+MINIAPP_URL=
