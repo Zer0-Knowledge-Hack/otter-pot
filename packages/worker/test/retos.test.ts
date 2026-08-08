@@ -44,6 +44,9 @@ class CadenaFalsa implements ChainClient {
   async estadoDeReto(): Promise<number> {
     return 1;
   }
+  async escalarUsdc(monto: number): Promise<bigint> {
+    return BigInt(monto) * 1_000_000n;
+  }
   async reembolsar(): Promise<Hex> {
     return "0xfff" as Hex;
   }

@@ -16,6 +16,8 @@ import { privateKeyToAccount } from "viem/accounts";
 import type { Address, Chain, Hex, PublicClient } from "viem";
 import type { ConfirmResultWriter } from "../confirmTx";
 
+const ERC20_ABI = parseAbi(["function decimals() view returns (uint8)"] as const);
+
 export const CHALLENGE_POOL_ABI = parseAbi([
   "function createChallenge(uint256 requiredDeposit, uint256 deadline, address[] participants) returns (uint256)",
   "function challengeStatus(uint256 challengeId) view returns (uint8)",
@@ -44,6 +46,8 @@ export const arbitrumNitroLocal: Chain = defineChain({
 export interface ChainConfig {
   rpcUrl: string;
   poolAddress: Address;
+  /** Token del pozo. Se necesita para leer sus decimales al escalar montos. */
+  usdcAddress: Address;
   operatorPrivateKey: Hex;
   chain?: Chain;
 }
@@ -54,6 +58,7 @@ const ADDRESS_FORMAT = /^0x[0-9a-fA-F]{40}$/;
 export interface ChainEnv {
   CHAIN_RPC_URL?: string;
   CHALLENGE_POOL_ADDRESS?: string;
+  USDC_ADDRESS?: string;
   OPERATOR_PRIVATE_KEY?: string;
 }
 
@@ -63,12 +68,16 @@ export interface ChainEnv {
  * `undefined` que reviente tres capas más abajo.
  */
 export function configDesdeEnv(env: ChainEnv, chain: Chain = arbitrumNitroLocal): ChainConfig {
-  const { CHAIN_RPC_URL, CHALLENGE_POOL_ADDRESS, OPERATOR_PRIVATE_KEY } = env;
+  const { CHAIN_RPC_URL, CHALLENGE_POOL_ADDRESS, USDC_ADDRESS, OPERATOR_PRIVATE_KEY } = env;
 
   if (!CHAIN_RPC_URL) throw new Error("cadena: falta CHAIN_RPC_URL");
   if (!CHALLENGE_POOL_ADDRESS) throw new Error("cadena: falta CHALLENGE_POOL_ADDRESS");
   if (!ADDRESS_FORMAT.test(CHALLENGE_POOL_ADDRESS)) {
     throw new Error("cadena: CHALLENGE_POOL_ADDRESS no es una dirección de 20 bytes");
+  }
+  if (!USDC_ADDRESS) throw new Error("cadena: falta USDC_ADDRESS");
+  if (!ADDRESS_FORMAT.test(USDC_ADDRESS)) {
+    throw new Error("cadena: USDC_ADDRESS no es una dirección de 20 bytes");
   }
   if (!OPERATOR_PRIVATE_KEY) throw new Error("cadena: falta OPERATOR_PRIVATE_KEY");
   if (!PRIVATE_KEY_FORMAT.test(OPERATOR_PRIVATE_KEY)) {
@@ -78,6 +87,7 @@ export function configDesdeEnv(env: ChainEnv, chain: Chain = arbitrumNitroLocal)
   return {
     rpcUrl: CHAIN_RPC_URL,
     poolAddress: CHALLENGE_POOL_ADDRESS as Address,
+    usdcAddress: USDC_ADDRESS as Address,
     operatorPrivateKey: OPERATOR_PRIVATE_KEY as Hex,
     chain,
   };
@@ -91,6 +101,15 @@ export interface ChainClient {
   crearReto(deposito: bigint, deadline: bigint, participantes: Address[]): Promise<{ challengeId: bigint; txHash: Hex }>;
   estadoDeReto(challengeId: bigint): Promise<number>;
   reembolsar(challengeId: bigint): Promise<Hex>;
+  /**
+   * Convierte un monto humano («25») a las unidades crudas del token.
+   *
+   * Imprescindible: el USDC de Circle tiene 6 decimales y el `mock_usdc` local
+   * tiene 0. Pasar el número sin escalar creaba retos de 0.000025 USDC contra el
+   * USDC real, y el depósito fallaba con `incorrect_deposit_amount` porque la
+   * Mini App sí escalaba. Los decimales se leen del token, nunca se asumen.
+   */
+  escalarUsdc(monto: number): Promise<bigint>;
   /**
    * Dirección del pool y emisor firmado, expuestos para que el flujo de
    * confirmación reuse `buildAndSendConfirmResult` de `confirmTx.ts` — que ya
@@ -109,8 +128,26 @@ export function crearChainClient(config: ChainConfig): ChainClient {
   const publicClient: PublicClient = createPublicClient({ chain, transport });
   const walletClient = createWalletClient({ account, chain, transport });
 
+  // Los decimales del token no cambian nunca, así que se leen una sola vez.
+  let decimalesCache: number | null = null;
+
   return {
     poolAddress: config.poolAddress,
+
+    async escalarUsdc(monto) {
+      if (decimalesCache === null) {
+        // La dirección viene por configuración: el `ChallengePool` del equipo no
+        // expone un getter `usdc()`, así que no se puede deducir del contrato.
+        decimalesCache = Number(
+          await publicClient.readContract({
+            address: config.usdcAddress,
+            abi: ERC20_ABI,
+            functionName: "decimals",
+          }),
+        );
+      }
+      return BigInt(monto) * 10n ** BigInt(decimalesCache);
+    },
 
     // El writer que consume `confirmTx.ts`: recibe una llamada YA validada.
     writer: {

@@ -35,6 +35,8 @@ export interface Env {
   MINIAPP_URL?: string;
   /** Dirección del `ChallengePool` desplegado. */
   CHALLENGE_POOL_ADDRESS?: string;
+  /** Token del pozo, para escalar montos por sus decimales. */
+  USDC_ADDRESS?: string;
   // Todos los secretos vienen de `wrangler secret put`, nunca hardcodeados (AGENTS.md).
 }
 

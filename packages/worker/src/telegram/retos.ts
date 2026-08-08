@@ -193,8 +193,13 @@ export async function handleAbrir(
     const deadline = BigInt(calcularDeadline(assembly));
     const participantes = assembly.participantes.map((p) => p.wallet as Address);
 
+    // El monto se escala a las unidades del token: el USDC de Circle tiene 6
+    // decimales. Sin esto, un reto de «25» se creaba pidiendo 0.000025 USDC y el
+    // depósito de la Mini App —que sí escala— fallaba por monto incorrecto.
+    const depositoEnUnidades = await deps.chain.escalarUsdc(assembly.deposito);
+
     const { challengeId, txHash } = await deps.chain.crearReto(
-      BigInt(assembly.deposito),
+      depositoEnUnidades,
       deadline,
       participantes,
     );
