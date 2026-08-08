@@ -1,0 +1,10 @@
+{
+    "$schema": "https://opencode.ai",
+    "mcp": {
+        "Etherscan": {
+            "type": "remote",
+            "url": "https://docs.etherscan.io/mcp",
+            "enabled": true
+        }
+    }
+}

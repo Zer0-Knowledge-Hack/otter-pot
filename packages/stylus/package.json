@@ -17,6 +17,8 @@
     "clean-contracts": "git clean -xdf -e .env -e contracts/ -e node_modules/",
     "deploy": "ts-node scripts/deploy_wrapper.ts",
     "deploy:contract": "ts-node scripts/deploy-contract.ts",
+    "sync:mirrors": "ts-node scripts/sync-mirrors.ts",
+    "verify:etherscan": "ts-node scripts/verify-etherscan.ts",
     "dev": "tsc --watch",
     "export-abi": "ts-node scripts/export_abi.ts",
     "participants:create": "ts-node scripts/create-participants.ts",

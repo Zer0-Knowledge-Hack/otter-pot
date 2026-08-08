@@ -1,6 +1,7 @@
 import * as fs from "fs";
 import * as path from "path";
 import { config as dotenvConfig } from "dotenv";
+import { MIRRORS } from "./mirrors";
 
 const envPath = path.resolve(__dirname, "../.env");
 if (fs.existsSync(envPath)) {
@@ -21,33 +22,40 @@ interface ContractToVerify {
   name: string;
   address: string;
   contractName: string; // Cargo package name
-  sourceUrl: string; // GitHub URL to contract directory
+  sourceUrl: string; // GitHub URL to mirror repo (root tiene Cargo.toml)
   compilerVersion: string;
 }
 
-const contracts: ContractToVerify[] = [
-  {
-    name: "TreasuryVault",
-    address: "0x7605e1dec0b25467962fa203c672bfcbe1033037",
-    contractName: "treasury_vault",
-    sourceUrl: "https://github.com/Zer0-Knowledge-Hack/otter-pot/tree/master/packages/stylus/contracts/treasury_vault",
-    compilerVersion: "stylus:0.10.7",
-  },
-  {
-    name: "ChallengePool",
-    address: "0x15a8143d72098da02fa75521f004d02b33dafdc7",
-    contractName: "challenge_pool",
-    sourceUrl: "https://github.com/Zer0-Knowledge-Hack/otter-pot/tree/master/packages/stylus/contracts/challenge_pool",
-    compilerVersion: "stylus:0.10.7",
-  },
-  {
-    name: "AaveStrategy",
-    address: "0x77ccbabb660d656b65e163aa4170e50d1b4ff006",
-    contractName: "aave_strategy",
-    sourceUrl: "https://github.com/Zer0-Knowledge-Hack/otter-pot/tree/master/packages/stylus/contracts/aave_strategy",
-    compilerVersion: "stylus:0.10.7",
-  },
-];
+const ADDRESSES_FILE = path.resolve(__dirname, "../../worker/contracts/AddressContracts.json");
+
+function loadAddresses(): Record<string, string> {
+  if (!fs.existsSync(ADDRESSES_FILE)) {
+    throw new Error(`No existe ${ADDRESSES_FILE}`);
+  }
+  const raw = JSON.parse(fs.readFileSync(ADDRESSES_FILE, "utf8")) as Record<
+    string,
+    { address?: string }
+  >;
+  const map: Record<string, string> = {};
+  for (const [key, val] of Object.entries(raw)) {
+    if (val.address) map[key] = val.address;
+  }
+  return map;
+}
+
+const contractAddresses = loadAddresses();
+
+const contracts: ContractToVerify[] = MIRRORS.map((m) => {
+  const address = contractAddresses[m.contractName];
+  if (!address) throw new Error(`Falta dirección de ${m.contractName} en ${ADDRESSES_FILE}`);
+  return {
+    name: m.name,
+    address,
+    contractName: m.contractName,
+    sourceUrl: m.repoUrl,
+    compilerVersion: m.compilerVersion,
+  };
+});
 
 async function submitVerification(contract: ContractToVerify): Promise<string | null> {
   console.log(`\n📤 Enviando verificación para ${contract.name} (${contract.address})...`);
@@ -59,7 +67,7 @@ async function submitVerification(contract: ContractToVerify): Promise<string | 
   formData.append("chainid", CHAIN_ID);
   formData.append("apikey", ETHERSCAN_KEY!);
   formData.append("codeformat", "stylus");
-  formData.append("sourceCode", contract.sourceUrl); // GitHub URL to contract directory
+  formData.append("sourceCode", contract.sourceUrl); // URL del repo espejo (raíz = Cargo.toml)
   formData.append("contractaddress", contract.address);
   formData.append("contractname", contract.contractName); // Cargo package name
   formData.append("compilerversion", contract.compilerVersion);
@@ -98,19 +106,20 @@ async function checkVerificationStatus(guid: string): Promise<void> {
   const checkUrl = `${API_URL}?module=contract&action=checkverifystatus&chainid=${CHAIN_ID}&apikey=${ETHERSCAN_KEY}&guid=${guid}`;
   
   let attempts = 0;
-  const maxAttempts = 20;
-  
+  const maxAttempts = 3;
+  const waitMs = 10000;
+
   while (attempts < maxAttempts) {
-try {
-       const response = await fetch(checkUrl);
-const result = (await response.json()) as EtherscanResponse;
-      console.log(`   Intento ${attempts + 1}: ${result.message} - ${result.result}`);
-      
+    try {
+      const response = await fetch(checkUrl);
+      const result = (await response.json()) as EtherscanResponse;
+      console.log(`   Intento ${attempts + 1}/${maxAttempts}: ${result.message} - ${result.result}`);
+
       if (result.status === "1") {
         console.log(`   ✅ Verificación exitosa!`);
         return;
       }
-      
+
       if (result.message === "Fail - Unable to verify") {
         console.log(`   ❌ Verificación falló: ${result.result}`);
         return;
@@ -118,10 +127,10 @@ const result = (await response.json()) as EtherscanResponse;
     } catch (error) {
       console.log(`   ⚠ Error consultando: ${error}`);
     }
-    
+
     attempts++;
     if (attempts < maxAttempts) {
-      await new Promise(r => setTimeout(r, 15000)); // Wait 15 seconds
+      await new Promise((r) => setTimeout(r, waitMs));
     }
   }
   

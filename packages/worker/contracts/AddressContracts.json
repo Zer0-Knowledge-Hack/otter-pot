@@ -1,12 +1,12 @@
 {
   "treasury_vault": {
-    "address": "0xf2c6da41a90bde1c341b634ed1e114a8cb2be37a"
+    "address": "0xa210100bff819e22ed0ab607ba161a670052501f"
   },
   "challenge_pool": {
-    "address": "0x4de4b2b29014f48a9e13b0686974e5d9a4181dfc"
+    "address": "0x257c75aada747c211dbf82897fbc93ac287f68bf"
   },
   "aave_strategy": {
-    "address": "0x1530cdfca91e250e272a815405a318ed10e4150c"
+    "address": "0xd1f4f0e9affa16754648d927d0e463bf5b58af9a"
   },
   "aave_pool_v3": {
     "address": "0xBfC91D59fdAA134A4ED45f7B584cAf96D7792Eff"
