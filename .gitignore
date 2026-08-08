@@ -95,4 +95,5 @@ docs/backend-plan.md
 .claude/skills/smoke-test/.smoke-state.json
 .claude/skills/cdp-with-wallet/.cdp-wallet-state.json
 
-docs/.atl/
+# Registro de skills del tooling de IA, no codigo del proyecto.
+.atl/
