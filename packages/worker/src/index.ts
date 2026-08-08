@@ -19,6 +19,8 @@ import { InMemoryConfirmationStore } from "./confirmations";
 import { handleChallengeStatus } from "./status";
 import { handleTelegramWebhook } from "./telegram";
 import { InMemoryStore } from "./telegram/store";
+import { TelegramApi } from "./telegram/api";
+import { registrarComandos } from "./telegram/comandos";
 
 export interface Env {
   ENVIRONMENT: string;
@@ -63,6 +65,27 @@ export default {
 
     if (url.pathname === "/telegram/webhook" && request.method === "POST") {
       return handleTelegramWebhook(request, env, botStore, confirmationStore);
+    }
+
+    // Registro del menú de comandos. Es una operación de setup que se corre a mano
+    // una vez (y de nuevo al agregar comandos), no algo que pase en cada arranque.
+    // Se protege con el mismo secreto del webhook: sin él, cualquiera podría
+    // reescribir el menú del bot.
+    if (url.pathname === "/telegram/registrar-comandos" && request.method === "POST") {
+      const secreto = request.headers.get("X-Telegram-Bot-Api-Secret-Token");
+      if (!env.TELEGRAM_WEBHOOK_SECRET || secreto !== env.TELEGRAM_WEBHOOK_SECRET) {
+        return new Response("Unauthorized", { status: 401 });
+      }
+      if (!env.TELEGRAM_BOT_TOKEN) {
+        return new Response("Falta TELEGRAM_BOT_TOKEN", { status: 500 });
+      }
+      try {
+        const resultado = await registrarComandos(new TelegramApi(env.TELEGRAM_BOT_TOKEN));
+        return Response.json({ ok: true, ...resultado });
+      } catch (error) {
+        const motivo = error instanceof Error ? error.message : String(error);
+        return Response.json({ ok: false, error: motivo }, { status: 502 });
+      }
     }
 
     const statusMatch = url.pathname.match(CHALLENGE_STATUS_PATH);
