@@ -467,7 +467,7 @@ async function runStrategyTests(
   decimals: number,
   fmt: (wei: bigint, decimals: number) => string,
   assert: (cond: boolean, msg: string) => asserts cond,
-  findEvent: (iface: Interface, logs: readonly Log[], name: string) => Promise<ethers.LogDescription | undefined>,
+  _findEvent: (iface: Interface, logs: readonly Log[], name: string) => Promise<ethers.LogDescription | undefined>,
 ): Promise<void> {
   console.log("\n============================================================");
   console.log("   Pruebas del Adaptador de Estrategia (mock_strategy)");
@@ -600,7 +600,7 @@ async function resolveStrategyAddress(
   vaultAddr: string,
   decimals: number,
   fmt: (wei: bigint, decimals: number) => string,
-  assert: (cond: boolean, msg: string) => asserts cond,
+  _assert: (cond: boolean, msg: string) => asserts cond,
 ): Promise<string> {
   const deploymentsPath = `../deployments/${(provider as any)._chainId || 412346}_latest.json`;
   // Intentar leer desde deployments
@@ -626,11 +626,11 @@ async function resolveStrategyAddress(
 }
 
 async function deployMockStrategy(
-  owner: Wallet,
-  usdcAddr: string,
-  vaultAddr: string,
-  decimals: number,
-  fmt: (wei: bigint, decimals: number) => string,
+  _owner: Wallet,
+  _usdcAddr: string,
+  _vaultAddr: string,
+  _decimals: number,
+  _fmt: (wei: bigint, decimals: number) => string,
 ): Promise<string> {
   // Nota: esto requiere que cargo stylus esté disponible.
   // En entorno local con Nitro DevNode, el deploy se hace via deploy.ts.
@@ -645,7 +645,7 @@ async function getIdleUSDC(
   owner: Wallet,
   usdcAddr: string,
   vaultAddr: string,
-  decimals: number,
+  _decimals: number,
 ): Promise<bigint> {
   const usdc = new ethers.Contract(usdcAddr, [
     "function balanceOf(address) view returns (uint256)",

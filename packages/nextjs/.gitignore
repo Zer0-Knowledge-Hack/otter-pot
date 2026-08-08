@@ -32,6 +32,8 @@ yarn-error.log*
 .env.development.local
 .env.test.local
 .env.production.local
+# El .example no lleva secretos: documenta que variables hacen falta.
+!.env.local.example
 
 # typescript
 *.tsbuildinfo

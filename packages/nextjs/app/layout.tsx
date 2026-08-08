@@ -2,7 +2,6 @@ import { Sora } from "next/font/google";
 import "@rainbow-me/rainbowkit/styles.css";
 import { Metadata, Viewport } from "next";
 import { ThemeProvider } from "~~/components/ThemeProvider";
-import { ClientProviders } from "~~/components/ClientProviders";
 import { RegisterSW } from "~~/components/otterpot/RegisterSW";
 import { TelegramScript } from "~~/components/otterpot/TelegramScript";
 import "~~/styles/globals.css";
@@ -18,10 +17,10 @@ const baseUrl = process.env.VERCEL_URL
   : `http://localhost:${process.env.PORT || 3000}`;
 const imageUrl = `${baseUrl}/thumbnail.jpg`;
 
-const title = "OtterPot";
+const title = "OtterPot — El pozo existe antes de que haya un ganador";
 const titleTemplate = "%s | OtterPot";
 const description =
-  "Convierte tus metas en retos con recompensas reales. Pozo USDC en Arbitrum + Telegram Mini App.";
+  "Retos con pozo compartido dentro de Telegram. El dinero queda bloqueado en un contrato en Arbitrum: nadie lo custodia y nadie puede desviarlo.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(baseUrl),
@@ -67,12 +66,24 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 };
 
+/**
+ * Layout raíz — deliberadamente sin los providers del scaffold.
+ *
+ * `ScaffoldEthAppWithProviders` devuelve `null` hasta montar en el cliente, así que
+ * cualquier página `"use client"` que cuelgue de él no emite nada en el servidor y
+ * queda en blanco si algo falla al hidratar — que es exactamente lo que le pasaba a
+ * `/depositar`. Las páginas de OtterPot no necesitan wagmi ni RainbowKit: hablan con
+ * la cadena por viem directo (`STACK.md` §1).
+ *
+ * Los providers se movieron a las rutas heredadas que sí los usan: `/debug` y
+ * `/blockexplorer`, cada una con su propio layout.
+ */
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html suppressHydrationWarning>
       <body className={`${sora.variable} font-sans`} suppressHydrationWarning>
         <ThemeProvider>
-          <ClientProviders>{children}</ClientProviders>
+          {children}
           <RegisterSW />
           <TelegramScript />
         </ThemeProvider>

@@ -115,7 +115,8 @@ async function initContracts(
   vaultAddr: string,
   poolAddr: string,
   strategyAddr: string,
-  isLocal: boolean,
+  /** Con mocks la estrategia se inicializa con solo el USDC; con Aave, con pool+usdc+atoken. */
+  usaMock: boolean,
 ): Promise<void> {
   const vault: InitVault = new ethers.Contract(vaultAddr, VAULT_ABI, owner) as unknown as InitVault;
   const pool: InitPool = new ethers.Contract(poolAddr, POOL_ABI, owner) as unknown as InitPool;
@@ -135,10 +136,10 @@ async function initContracts(
   }
 
   // 2. Strategy.init(...)
-  console.log(`  Strategy.init(${isLocal ? "usdc" : "pool, usdc, atoken"})…`);
+  console.log(`  Strategy.init(${usaMock ? "usdc" : "pool, usdc, atoken"})…`);
   try {
     let tx: ContractTransactionResponse;
-    if (isLocal) {
+    if (usaMock) {
       tx = await strategy.init(usdcAddr);
     } else {
       tx = await strategy.init(AAVE_V3_POOL_SEPOLIA, USDC_SEPOLIA, AUSDC_SEPOLIA);
@@ -213,7 +214,14 @@ export default async function deployScript(
     console.log(`   Owner: ${derived}  bal: ${(await new ethers.JsonRpcProvider(target.rpc).getBalance(derived)).toString()} wei`);
   }
 
-  const contracts = target.isLocal
+  // Los mocks van SOLO en local, nunca en testnet (SDD v6 §6.5 y §7.3.3).
+  //
+  // En Arbitrum Sepolia se opera con el USDC de Circle y con Aave V3 real: la spec
+  // es explícita en que la demo debe correr contra el protocolo, no contra un
+  // simulacro. El USDC de prueba se obtiene del faucet de Circle o del de Aave
+  // (SDD §7.3.2), así que no hace falta desplegar un mock para tener fondos.
+  const usaMock = target.isLocal;
+  const contracts = usaMock
     ? ["mock_usdc", "mock_strategy", "treasury_vault", "challenge_pool"]
     : ["treasury_vault", "challenge_pool", "aave_strategy"];
 
@@ -254,10 +262,10 @@ export default async function deployScript(
     record["mock_usdc"]?.address ??
     raw["usdc"] ??
     process.env["USDC_ADDRESS"] ??
-    (target.isLocal ? undefined : USDC_SEPOLIA);
+    (usaMock ? undefined : USDC_SEPOLIA);
   const vaultAddr = record["treasury_vault"]?.address;
   const poolAddr = record["challenge_pool"]?.address;
-  const strategyAddr = target.isLocal
+  const strategyAddr = usaMock
     ? record["mock_strategy"]?.address
     : record["aave_strategy"]?.address;
 
@@ -271,7 +279,7 @@ export default async function deployScript(
   const owner = new ethers.Wallet(normalizedKey, provider);
 
   console.log("\nInicializando contratos…");
-  await initContracts(owner, usdcAddr, vaultAddr, poolAddr, strategyAddr, target.isLocal);
+  await initContracts(owner, usdcAddr, vaultAddr, poolAddr, strategyAddr, usaMock);
 
   // 4) Despliegue inicial de capital en la estrategia (solo local, opcional)
   if (target.isLocal) {

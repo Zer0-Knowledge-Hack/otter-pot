@@ -37,6 +37,8 @@ firebase.json
 .wrangler/
 .dev.vars
 .dev.vars.*
+# Los .example no llevan secretos: son lo que necesita quien clona el repo.
+!.dev.vars.example
 **/dist/
 
 # ============================================
@@ -103,10 +105,7 @@ docs/backend-plan.md
 .claude/skills/smoke-test/.smoke-state.json
 .claude/skills/cdp-with-wallet/.cdp-wallet-state.json
 
-docs/
-
+# Registro de skills del tooling de IA, no codigo del proyecto.
+.atl/
 # Build Worker
-.wrangler/
-.dev.vars
-.dev.vars.*
 **/build/

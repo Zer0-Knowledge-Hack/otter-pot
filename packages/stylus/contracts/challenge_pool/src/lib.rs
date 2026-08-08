@@ -349,15 +349,18 @@ pub mod contract {
         ) -> Result<(), Vec<u8>> {
             self.require_operator()?;
 
-            let (status, treasury_shares) = {
+            let (status, treasury_shares, winner_is_participant) = {
                 let ch = self.challenges.setter(challenge_id);
                 (
                     u8::try_from(ch.status.get()).unwrap(),
                     ch.treasury_shares.get(),
+                    ch.participants.get(winner),
                 )
             };
 
-            validate_confirm_result(status, winner).map_err(|e| e.as_bytes().to_vec())?;
+            // El ganador debe pertenecer al reto: el operador relaya una decisión, no la elige.
+            validate_confirm_result(status, winner, winner_is_participant)
+                .map_err(|e| e.as_bytes().to_vec())?;
 
             // CEI: estado terminal antes de la llamada externa.
             {

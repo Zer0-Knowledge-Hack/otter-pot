@@ -2,7 +2,7 @@
 
 ## Resumen del proyecto
 
-Plataforma de retos entre amigos con pozo de premios compartido, construida sobre Arbitrum (Stylus/Rust) para ETH Lima 2026. La interfaz de usuario vive enteramente en Telegram (bot + Mini App). Los fondos se custodian en un smart contract (`ChallengePool`) que delega la gestión de capital agregado a un contrato de tesorería (`TreasuryVault`) conectado a un protocolo externo de rendimiento mediante un adaptador intercambiable.
+**OtterPot** es una plataforma de retos entre amigos con pozo de premios compartido, construida sobre Arbitrum (Stylus/Rust) para ETH Lima 2026. La interfaz de usuario vive enteramente en Telegram (bot + Mini App). Los fondos se custodian en un smart contract (`ChallengePool`) que delega la gestión de capital agregado a un contrato de tesorería (`TreasuryVault`) conectado a un protocolo externo de rendimiento mediante un adaptador intercambiable.
 
 La especificación completa de negocio y arquitectura vive en `docs/SDD.md`. Ese documento es la fuente de verdad para cualquier decisión de diseño; si el código y el SDD entran en conflicto, se actualiza el SDD primero y luego el código, nunca al revés.
 

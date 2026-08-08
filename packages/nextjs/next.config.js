@@ -29,15 +29,15 @@ const nextConfig = {
   images: {
     unoptimized: true,
   },
-
   trailingSlash: true,
-
+  trailingSlash: true,
   typescript: {
     ignoreBuildErrors:
       process.env.NEXT_PUBLIC_IGNORE_BUILD_ERROR === "true",
   },
 
   allowedDevOrigins: [
+    "*.trycloudflare.com",
     "192.168.100.31",
     "127.0.0.1",
     "localhost",
