@@ -28,21 +28,21 @@ interface ContractToVerify {
 const contracts: ContractToVerify[] = [
   {
     name: "TreasuryVault",
-    address: "0xd3df3455a4e51869d7c99a2a034cff9df4dac8f5",
+    address: "0xf2c6da41a90bde1c341b634ed1e114a8cb2be37a",
     contractName: "treasury_vault",
     sourceUrl: "https://github.com/Zer0-Knowledge-Hack/otter-pot/tree/master/packages/stylus/contracts/treasury_vault",
     compilerVersion: "stylus:0.10.8",
   },
   {
     name: "ChallengePool",
-    address: "0x2906f14bb9294422a6908bcc95f2e7029dd180d9",
+    address: "0x4de4b2b29014f48a9e13b0686974e5d9a4181dfc",
     contractName: "challenge_pool",
     sourceUrl: "https://github.com/Zer0-Knowledge-Hack/otter-pot/tree/master/packages/stylus/contracts/challenge_pool",
     compilerVersion: "stylus:0.10.8",
   },
   {
     name: "AaveStrategy",
-    address: "0xbffcedc570eb24b8c557bfe05deb54c8dfd0f841",
+    address: "0x1530cdfca91e250e272a815405a318ed10e4150c",
     contractName: "aave_strategy",
     sourceUrl: "https://github.com/Zer0-Knowledge-Hack/otter-pot/tree/master/packages/stylus/contracts/aave_strategy",
     compilerVersion: "stylus:0.10.8",
