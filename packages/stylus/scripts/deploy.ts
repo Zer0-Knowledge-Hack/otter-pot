@@ -70,8 +70,8 @@ interface InitStrategy {
   setVault(vault: string): Promise<ContractTransactionResponse>;
 }
 
-const LINUX_CONTRACTS = path
-  .resolve(__dirname, "../contracts")
+const REPO_ROOT = path
+  .resolve(__dirname, "../../..")
   .replace(/^([A-Za-z]):\\/, (_: string, d: string) => `/mnt/${d.toLowerCase()}/`)
   .replace(/\\/g, "/");
 
@@ -94,8 +94,12 @@ async function cargoDeploy(
   const script = [
     `rm -rf ${TMP_WORKSPACE}/work`,
     `mkdir -p ${TMP_WORKSPACE}/work`,
-    `cp -r '${LINUX_CONTRACTS}' ${TMP_WORKSPACE}/work/`,
-    `cd ${TMP_WORKSPACE}/work/contracts/${name}`,
+    `cp -r '${REPO_ROOT}/Cargo.toml' '${REPO_ROOT}/Cargo.lock' '${REPO_ROOT}/rust-toolchain.toml' '${REPO_ROOT}/Stylus.toml' ${TMP_WORKSPACE}/work/`,
+    `mkdir -p ${TMP_WORKSPACE}/work/packages/stylus/`,
+    `cp -r '${REPO_ROOT}/packages/stylus/contracts' ${TMP_WORKSPACE}/work/packages/stylus/`,
+    `rm -rf ${TMP_WORKSPACE}/work/packages/stylus/contracts/target`,
+    `find ${TMP_WORKSPACE}/work/packages/stylus/contracts -name Cargo.lock -delete`,
+    `cd ${TMP_WORKSPACE}/work/packages/stylus/contracts/${name}`,
     `cargo stylus deploy --endpoint '${rpc}' --private-key '${privateKey}' --no-verify --max-fee-per-gas-gwei=${maxFeeGwei}`,
   ].join(" && ");
   const out = runWsl(script);
