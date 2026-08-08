@@ -141,9 +141,14 @@ export default async function deployScript(
     console.log(`   Owner: ${derived}  bal: ${(await new ethers.JsonRpcProvider(target.rpc).getBalance(derived)).toString()} wei`);
   }
 
-  const contracts = target.isLocal
-    ? ["mock_usdc", "treasury_vault", "challenge_pool"]
-    : ["treasury_vault", "challenge_pool"];
+  // En testnet se despliega el mock salvo que se indique un USDC ya existente.
+  // Sin eso no hay forma de financiar a los participantes de una demo: el USDC
+  // real de una testnet también se pide por faucet, y eso es una dependencia más.
+  const usdcIndicado = raw["usdc"] ?? process.env["USDC_ADDRESS"];
+  const contracts =
+    target.isLocal || !usdcIndicado
+      ? ["mock_usdc", "treasury_vault", "challenge_pool"]
+      : ["treasury_vault", "challenge_pool"];
 
   console.log("==========================================================");
   console.log("   OtterPot — deploy completo");
