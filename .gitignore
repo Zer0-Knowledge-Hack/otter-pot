@@ -104,3 +104,9 @@ docs/backend-plan.md
 .claude/skills/cdp-with-wallet/.cdp-wallet-state.json
 
 docs/
+
+# Build Worker
+.wrangler/
+.dev.vars
+.dev.vars.*
+**/build/

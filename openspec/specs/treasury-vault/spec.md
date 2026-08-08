@@ -3,7 +3,9 @@
 ## Purpose
 
 Define el comportamiento del tesoro (TreasuryVault) como vault de participaciones sobre USDC (ERC-20). El tesoro agrega el capital USDC de todos los retos bloqueados, lo hace crecer con rendimiento medible en USDC y permite a cada reto canjear sus participaciones para recuperar su capital más el rendimiento correspondiente, de forma justa y verificable (SDD §7.1 y §7.2).
+
 ## Requirements
+
 ### Requirement: Vault share pricing
 
 The system SHALL compute a price per share equal to total assets divided by total shares in circulation, denominated in USDC.
@@ -163,4 +165,3 @@ The system SHALL allow the administrator to transfer the admin role to another a
 
 - **WHEN** an address other than the nominated one attempts to accept
 - **THEN** the system rejects the call
-

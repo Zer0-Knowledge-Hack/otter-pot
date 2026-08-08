@@ -12,7 +12,8 @@ La fuente de verdad de negocio y arquitectura es `docs/SDD.md`. Antes de propone
 
 - `ChallengePool` (contrato): custodia cada reto individual, gestiona depósitos, confirmaciones, resolución y reembolsos.
 - `TreasuryVault` (contrato): agrupa capital de retos activos, lo coloca en un protocolo externo de rendimiento vía un adaptador intercambiable, y usa contabilidad por participaciones (no división "por día") para que ningún reto gane o pierda ventaja por el tamaño de la tesorería en un momento dado. Detalle completo en SDD sección 7.2.
-- Worker de Cloudflare: orquesta entre el bot de Telegram y el contrato; mantiene una cuenta operadora que solo puede relayar confirmaciones ya verificadas off-chain, nunca mover fondos a direcciones arbitrarias.
+- Worker orquestador (bot): interactúa con Telegram y el contrato; mantiene una cuenta operadora que solo puede relayar confirmaciones ya verificadas off-chain, nunca mover fondos a direcciones arbitrarias.
+- Worker de tesorería (sweeper): tarea programada (cron) en un Worker independiente que mueve el capital inactivo hacia Aave utilizando la llave del administrador, aislada del bot público.
 
 ## Reglas que no debes romper
 
