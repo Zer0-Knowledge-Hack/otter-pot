@@ -35,6 +35,8 @@ firebase.json
 
 # Cloudflare Worker
 .wrangler/
+.dev.vars
+.dev.vars.*
 **/dist/
 
 # ============================================
@@ -95,6 +97,9 @@ coverage/
 .agent/skills/
 .agents/skills/
 .worktrees/
+
+# Planes de trabajo personales — no son documentación de producto, quedan locales
+docs/backend-plan.md
 .claude/skills/smoke-test/.smoke-state.json
 .claude/skills/cdp-with-wallet/.cdp-wallet-state.json
 

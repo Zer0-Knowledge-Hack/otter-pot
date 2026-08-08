@@ -153,9 +153,12 @@ export async function generateTsAbi(
   const TARGET_FILE = `${TARGET_DIR}deployedContracts.ts`;
   const abiTxt = fs.readFileSync(abiFilePath, "utf8");
 
-  // Extract from 4th row to the end
-  const lines = abiTxt.split("\n");
-  const extractedAbi = lines.slice(3).join("\n");
+  const startIndex = abiTxt.indexOf('[');
+  const endIndex = abiTxt.lastIndexOf(']');
+  let extractedAbi = abiTxt;
+  if (startIndex !== -1 && endIndex !== -1) {
+    extractedAbi = abiTxt.substring(startIndex, endIndex + 1);
+  }
   const abiJson = JSON.parse(extractedAbi);
 
   const newContractEntry = {

@@ -1,91 +1,109 @@
 import * as path from "path";
 import * as fs from "fs";
-import {
-  getExportConfig,
-  ensureDeploymentDirectory,
-  executeCommand,
-  generateTsAbi,
-  handleSolcError,
-} from "./utils/";
+import { getContractDataFromDeployments } from './utils/deployment';
+import { executeCommand, generateTsAbi } from './utils/';
 
-export async function exportStylusAbi(
-  contractFolder: string,
-  contractName: string,
-  isScript: boolean = true,
-  chainId?: string,
-) {
-  console.log("📄 Starting Stylus ABI export...");
-
-  // Resolve the actual filesystem path (contracts live under contracts/)
-  const fsPath = path.join("contracts", contractFolder);
-  const config = getExportConfig(fsPath, contractName, chainId);
-
-  if (!config.contractAddress) {
-    console.error(
-      `❌ Contract address not found. Please deploy the contract first or ensure it is saved in a chain-specific deployment file in ${config.deploymentDir}`,
-    );
-    process.exit(1);
+const contractsToExport = [
+  {
+    name: "ChallengePool",
+    folder: "challenge_pool",
+    chainId: "412346",
+  },
+  {
+    name: "TreasuryVault",
+    folder: "treasury_vault",
+    chainId: "412346",
+  },
+  {
+    name: "ChallengePool",
+    folder: "challenge_pool",
+    chainId: "421614",
+  },
+  {
+    name: "TreasuryVault",
+    folder: "treasury_vault",
+    chainId: "421614",
+  },
+  {
+    name: "AaveStrategy",
+    folder: "aave_strategy",
+    chainId: "421614",
+  },
+  {
+    name: "MockStrategy",
+    folder: "mock_strategy",
+    chainId: "412346",
   }
+];
 
-  if (isScript) {
-    console.log(`📄 Contract name: ${config.contractName}`);
-    console.log(`📁 Deployment directory: ${config.deploymentDir}`);
-    console.log(`📍 Contract address: ${config.contractAddress}`);
-    console.log(`🔗 Chain ID: ${config.chainId}`);
-  }
+const deploymentDir = path.join(__dirname, "../deployments");
+const WORKER_TARGET_DIR = path.join(__dirname, "../../worker/contracts");
 
-  try {
-    ensureDeploymentDirectory(config.deploymentDir);
+async function main() {
+  console.log("⚙️  Generando ABIs...");
 
-    // Export ABI
-    // cwd is now contracts/<contract>/, so ../../ reaches packages/stylus/
-    const exportCommand = `cargo stylus export-abi --output='../../${config.deploymentDir}/${config.contractFolder}' --json`;
-    await executeCommand(exportCommand, fsPath, "Exporting ABI");
+  for (const contract of contractsToExport) {
+    console.log(`\n📦 Buscando despliegue para ${contract.name} en red ${contract.chainId}...`);
 
-    console.log(
-      `📄 ABI file location: ${config.deploymentDir}/${config.contractFolder}`,
-    );
+    const deploymentData = getContractDataFromDeployments(deploymentDir, contract.folder, contract.chainId);
 
-    const abiFilePath = path.resolve(
-      config.deploymentDir,
-      `${config.contractFolder}`,
-    );
-    if (fs.existsSync(abiFilePath)) {
-      console.log(`✅ ABI file verified at: ${abiFilePath}`);
-    } else {
-      console.warn(
-        `⚠️  ABI file not found at expected location: ${abiFilePath}`,
-      );
+    if (!deploymentData) {
+      console.error(`❌ No se encontró despliegue (dirección) para ${contract.folder} en la carpeta 'deployments'. Asegúrate de haberlo desplegado primero.`);
+      continue;
     }
 
-    // do not Generate TypeScript ABI when called from yarn script
-    if (!isScript) {
-      await generateTsAbi(
-        abiFilePath,
-        config.contractName,
-        config.contractAddress,
-        config.txHash,
-        config.chainId,
-      );
+    const { address, chainId, txHash } = deploymentData;
+    console.log(`📍 Encontrado ${contract.name} en la red ${chainId} con dirección: ${address}`);
+
+    const contractPath = path.join(__dirname, "../contracts", contract.folder);
+    const abiOutputFile = path.resolve(__dirname, `../deployments/${contract.folder}.json`);
+
+    try {
+      // Export ABI using cargo stylus and save to file using --output (through WSL with login shell to load cargo env)
+      const exportCommand = `wsl bash -lc "cargo stylus export-abi --output='../../deployments/${contract.folder}.json' --json"`;
+      await executeCommand(exportCommand, contractPath, `Exportando ABI de ${contract.name}`);
+
+      if (fs.existsSync(abiOutputFile)) {
+        console.log(`✅ ABI file generado exitosamente en: ${abiOutputFile}`);
+        
+        // Copiar el JSON crudo para el backend (worker)
+        if (!fs.existsSync(WORKER_TARGET_DIR)) {
+          fs.mkdirSync(WORKER_TARGET_DIR, { recursive: true });
+        }
+        let rawContent = fs.readFileSync(abiOutputFile, "utf8");
+        // Stylus/solc stdout includes text headers like "======= <stdin>:Contract =======", so we extract just the JSON array []
+        const startIndex = rawContent.indexOf('[');
+        const endIndex = rawContent.lastIndexOf(']');
+        if (startIndex !== -1 && endIndex !== -1) {
+          rawContent = rawContent.substring(startIndex, endIndex + 1);
+        }
+        
+        // Escribimos el rawContent limpio de vuelta para que generateTsAbi (que también lee el JSON) no falle
+        fs.writeFileSync(abiOutputFile, rawContent);
+        
+        const abiJson = JSON.parse(rawContent);
+        fs.writeFileSync(
+          path.join(WORKER_TARGET_DIR, `${contract.name}.abi.json`),
+          JSON.stringify(abiJson, null, 2)
+        );
+        console.log(`✅ ABI JSON copiado a worker/contracts/${contract.name}.abi.json`);
+
+        // Generar el TypeScript ABI para el frontend (Next.js)
+        await generateTsAbi(
+          abiOutputFile,
+          contract.name,
+          address,
+          txHash || "",
+          chainId
+        );
+      } else {
+        console.error(`❌ No se generó el archivo ABI en: ${abiOutputFile}`);
+      }
+    } catch (error) {
+      console.error(`❌ Error exportando ABI para ${contract.name}:`, error);
     }
-  } catch (error) {
-    handleSolcError(error as Error);
-    process.exit(1);
   }
+  console.log("\n¡Listo! Direcciones dinámicas aplicadas. Ya puedes versionar estos archivos.");
 }
 
-if (require.main === module) {
-  // Get contract folder from command line args, default to 'your-contract'
-  const rawContract = process.argv[2] || "your-contract";
-  const contractFolder = path.join("contracts", rawContract);
-  if (!fs.existsSync(contractFolder)) {
-    console.error(`❌ Contract folder does not exist: ${contractFolder}`);
-    process.exit(1);
-  }
-  exportStylusAbi(rawContract, rawContract).catch(
-    (error) => {
-      console.error("Fatal error:", error);
-      process.exit(1);
-    },
-  );
-}
+main().catch(console.error);

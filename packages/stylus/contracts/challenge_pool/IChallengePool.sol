@@ -49,6 +49,14 @@ interface IChallengePool {
     event OperatorAdded(address indexed operator);
     event OperatorRemoved(address indexed operator);
 
+    /// @notice Emitted whenever the commission rate is updated by the owner.
+    /// @param  previousRate  Rate in bps that was active before the change.
+    /// @param  newRate       Rate in bps now active.
+    event CommissionRateUpdated(
+        uint256 indexed previousRate,
+        uint256 indexed newRate
+    );
+
     // ── Admin / Initialization ────────────────────────────────────────────────
 
     /// @notice One-shot initializer. Sets owner = msg.sender, USDC and vault.
@@ -69,7 +77,8 @@ interface IChallengePool {
     /// @notice Remove an authorized operator. Owner-only.
     function removeOperator(address operator) external;
 
-    /// @notice Update commission rate. Owner-only. Max 1 000 bps (10 %).
+    /// @notice Update commission rate. Owner-only.
+    ///         Emits CommissionRateUpdated.
     /// @param  rateBps  Basis points (100 bps = 1 %).
     function setCommissionRate(uint256 rateBps) external;
 
@@ -115,4 +124,7 @@ interface IChallengePool {
 
     /// @notice Returns true if `operator` is authorized.
     function isOperator(address operator) external view returns (bool);
+
+    /// @notice Returns the current commission rate in basis points.
+    function commissionRate() external view returns (uint256);
 }

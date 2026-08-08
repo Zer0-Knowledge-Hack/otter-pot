@@ -5,7 +5,8 @@
     "workspaces": {
         "packages": [
             "packages/stylus",
-            "packages/nextjs"
+            "packages/nextjs",
+            "packages/worker"
         ]
     },
     "scripts": {
@@ -14,14 +15,20 @@
         "clean-contracts": "yarn workspace @ss/stylus clean-contracts",
         "compile": "yarn workspace @ss/stylus compile",
         "deploy": "yarn workspace @ss/stylus deploy",
+        "deploy:contract": "yarn workspace @ss/stylus deploy:contract",
         "export-abi": "yarn workspace @ss/stylus export-abi",
         "flatten": "yarn workspace @ss/stylus flatten",
         "fork": "yarn workspace @ss/stylus fork",
         "format": "yarn next:format",
         "generate": "yarn workspace @ss/stylus generate",
         "info:networks": "yarn workspace @ss/stylus info:networks",
+        "integration:usdc": "yarn workspace @ss/stylus integration:usdc",
         "postinstall": "husky install",
         "new-module": "yarn workspace @ss/stylus new-module",
+        "participants:create": "yarn workspace @ss/stylus participants:create",
+        "participants:fund": "yarn workspace @ss/stylus participants:fund",
+        "status": "yarn workspace @ss/stylus status --network sepolia",
+        "setup:contracts": "yarn workspace @ss/stylus setup:contracts",
         "next:build": "yarn workspace @ss/nextjs build",
         "next:check-types": "yarn workspace @ss/nextjs check-types",
         "next:format": "yarn workspace @ss/nextjs format",
@@ -33,9 +40,14 @@
         "stylus:lint": "yarn workspace @ss/stylus lint",
         "stylus:test": "yarn workspace @ss/stylus test",
         "test": "yarn stylus:test",
+        "history": "yarn workspace @ss/stylus txhistory",
         "vercel": "yarn workspace @ss/nextjs vercel",
         "vercel:yolo": "yarn workspace @ss/nextjs vercel:yolo",
         "verify": "yarn workspace @ss/stylus verify",
+        "worker:dev": "yarn workspace @ss/worker dev",
+        "worker:deploy": "yarn workspace @ss/worker deploy",
+        "worker:lint": "yarn workspace @ss/worker lint",
+        "worker:test": "yarn workspace @ss/worker test",
         "openspec:propose": "openspec change create",
         "openspec:apply": "openspec change apply",
         "openspec:archive": "openspec change archive",

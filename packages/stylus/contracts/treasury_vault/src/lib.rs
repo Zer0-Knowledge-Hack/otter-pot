@@ -1,13 +1,25 @@
 #![cfg_attr(all(target_arch = "wasm32", not(feature = "export-abi")), no_main)]
 
-#[cfg(target_arch = "wasm32")]
+#[cfg(any(target_arch = "wasm32", feature = "export-abi"))]
 extern crate alloc;
 
-#[cfg(target_arch = "wasm32")]
+/// Lógica pura, testeable en host (sin llamadas EVM).
+pub mod logic;
+
+#[cfg(any(target_arch = "wasm32", feature = "export-abi"))]
 pub mod contract {
     use alloy_primitives::{Address, U256};
     use alloy_sol_types::{sol, SolCall};
-    use stylus_sdk::{call, contract, evm, msg, prelude::*};
+    use stylus_sdk::{
+        call, contract, evm, msg,
+        prelude::*,
+        storage::{StorageAddress, StorageBool, StorageU256},
+    };
+
+    use super::logic;
+    use strategy::{strategy_balance_of, strategy_deposit, strategy_withdraw};
+
+    mod strategy;
 
     // ── ERC-20 (USDC) ────────────────────────────────────────────────────────
     sol! {
@@ -38,6 +50,10 @@ pub mod contract {
         );
         event YieldRealized(uint256 added_assets, uint256 total_assets);
         event StrategyUpdated(address indexed old_strategy, address indexed new_strategy);
+        event StrategyDeployed(address indexed strategy, uint256 amount);
+        event StrategyWithdrawn(address indexed strategy, uint256 amount);
+        event OwnershipTransferStarted(address indexed previous_owner, address indexed new_owner);
+        event OwnershipTransferred(address indexed previous_owner, address indexed new_owner);
     }
 
     // ── Almacenamiento ────────────────────────────────────────────────────────
@@ -45,18 +61,22 @@ pub mod contract {
     #[storage]
     #[entrypoint]
     pub struct TreasuryVault {
-        /// Cuenta administradora (SDD §7.3).
+        /// Cuenta administradora (SDD §7.3). Puede ser EOA o multisig.
         pub owner: StorageAddress,
         /// Activo de rendimiento (USDC).
         pub usdc: StorageAddress,
-        /// Estrategia externa (0x0 en MVP).
+        /// Estrategia externa activa (0x0 = sin estrategia).
         pub strategy: StorageAddress,
         /// Activos bajo gestión en USDC (incluye rendimiento).
         pub total_assets: StorageU256,
         /// Participaciones en circulación.
         pub total_shares: StorageU256,
+        /// Último valor medido en la estrategia, en USDC.
+        pub strategy_deployed: StorageU256,
         /// Bloquea depósitos y canjes.
         pub paused: StorageBool,
+        /// Administrador nominado pendiente de aceptar (multisig).
+        pub pending_owner: StorageAddress,
     }
 
     // ── Helpers ────────────────────────────────────────────────────────────────
@@ -65,7 +85,7 @@ pub mod contract {
         fn usdc_balance(&self, token: Address, who: Address) -> U256 {
             let call = IERC20::balanceOfCall { account: who };
             let data = call.abi_encode();
-            match call::static_call(&self, token, &data) {
+            match call::static_call(self, token, &data) {
                 Ok(out) => read_u256(&out),
                 Err(_) => U256::ZERO,
             }
@@ -99,6 +119,7 @@ pub mod contract {
             self.usdc.set(usdc);
             self.total_assets.set(U256::ZERO);
             self.total_shares.set(U256::ZERO);
+            self.strategy_deployed.set(U256::ZERO);
             self.paused.set(false);
             evm::log(TreasuryInitialized {
                 admin: msg::sender(),
@@ -124,6 +145,10 @@ pub mod contract {
 
         pub fn total_shares(&self) -> U256 {
             self.total_shares.get()
+        }
+
+        pub fn strategy_deployed(&self) -> U256 {
+            self.strategy_deployed.get()
         }
 
         /// Emite participaciones por USDC depositados. CEI: contabilidad antes del
@@ -157,7 +182,7 @@ pub mod contract {
             call::call(&mut *self, usdc, &data).map_err(|_| b"transferFrom_failed".to_vec())?;
 
             // Verificar el movimiento (robusto a variantes USDC sin bool).
-            let got = self.usdc_balance(&usdc, &contract::address());
+            let got = self.usdc_balance(usdc, contract::address());
             if got < assets {
                 return Err(b"usdc_not_transferred".to_vec());
             }
@@ -172,7 +197,9 @@ pub mod contract {
             Ok(shares)
         }
 
-        /// Quema shares y devuelve los USDC equivalentes. CEI: contabilidad antes del transfer.
+        /// Quema shares y devuelve los USDC equivalentes. Si el saldo inactivo no
+        /// alcanza, retira el faltante de la estrategia activa (SDD §13).
+        /// CEI: contabilidad antes de cualquier llamada externa.
         pub fn redeem_shares(&mut self, shares: U256, to: Address) -> Result<U256, Vec<u8>> {
             self.require_not_paused()?;
             if shares.is_zero() {
@@ -192,8 +219,19 @@ pub mod contract {
             let new_assets = self.total_assets.get().saturating_sub(assets);
             self.total_assets.set(new_assets);
 
-            // Pagar USDC a `to`.
+            // Traer USDC desde la estrategia si el saldo inactivo no alcanza.
             let usdc = self.usdc.get();
+            let idle = self.usdc_balance(usdc, contract::address());
+            let shortfall = logic::withdraw_shortfall(assets, idle);
+            if !shortfall.is_zero() {
+                let strategy = self.strategy.get();
+                let received = strategy_withdraw(&mut *self, strategy, shortfall)?;
+                let deployed = self.strategy_deployed.get();
+                self.strategy_deployed
+                    .set(deployed.saturating_sub(received));
+            }
+
+            // Pagar USDC a `to`.
             let call = IERC20::transferCall { to, amount: assets }.abi_encode();
             call::call(&mut *self, usdc, &call).map_err(|_| b"transfer_failed".to_vec())?;
 
@@ -208,16 +246,91 @@ pub mod contract {
 
         // ── Estrategia de rendimiento (SDD §7.3) ───────────────────────────────
 
-        /// Modela el rendimiento: aumenta total_assets sin emitir shares. Solo admin.
-        pub fn realize_yield(&mut self, added_assets: U256) -> Result<(), Vec<u8>> {
+        /// Despliega `amount` USDC inactivos en la estrategia activa. Solo admin.
+        pub fn deploy_to_strategy(&mut self, amount: U256) -> Result<(), Vec<u8>> {
             self.require_admin()?;
-            if added_assets.is_zero() {
+            let strategy = self.strategy.get();
+            let usdc = self.usdc.get();
+            let idle = self.usdc_balance(usdc, contract::address());
+            logic::validate_deploy_amount(amount, idle)?;
+
+            // Aprobar a la estrategia para gastar USDC del vault
+            let approve = IERC20::approveCall {
+                spender: strategy,
+                amount,
+            }
+            .abi_encode();
+            call::call(&mut *self, usdc, &approve)
+                .map_err(|_| b"approve_strategy_failed".to_vec())?;
+
+            let before = strategy_balance_of(&*self, strategy);
+            strategy_deposit(&mut *self, strategy, amount)?;
+            let after = strategy_balance_of(&*self, strategy);
+            if after <= before {
+                return Err(b"strategy_not_credited".to_vec());
+            }
+
+            let deployed = self.strategy_deployed.get() + amount;
+            self.strategy_deployed.set(deployed);
+            evm::log(StrategyDeployed { strategy, amount });
+            Ok(())
+        }
+
+        /// Retira `amount` USDC de la estrategia de vuelta al vault. Solo admin.
+        pub fn withdraw_from_strategy(&mut self, amount: U256) -> Result<(), Vec<u8>> {
+            self.require_admin()?;
+            if amount.is_zero() {
                 return Ok(());
             }
-            let new_total = self.total_assets.get() + added_assets;
+            let strategy = self.strategy.get();
+            let usdc = self.usdc.get();
+            let before = self.usdc_balance(usdc, contract::address());
+            let received = strategy_withdraw(&mut *self, strategy, amount)?;
+            let after = self.usdc_balance(usdc, contract::address());
+            if received.is_zero() && after <= before {
+                return Err(b"strategy_not_credited".to_vec());
+            }
+
+            let deployed = self.strategy_deployed.get();
+            self.strategy_deployed
+                .set(deployed.saturating_sub(received));
+            evm::log(StrategyWithdrawn { strategy, amount });
+            Ok(())
+        }
+
+        /// Drena por completo la estrategia activa. Útil en la migración con pausa.
+        pub fn withdraw_all_from_strategy(&mut self) -> Result<(), Vec<u8>> {
+            self.require_admin()?;
+            let strategy = self.strategy.get();
+            if strategy == Address::ZERO {
+                return Ok(());
+            }
+            let all = strategy_balance_of(&*self, strategy);
+            if all.is_zero() {
+                return Ok(());
+            }
+            self.withdraw_from_strategy(all)
+        }
+
+        /// Acredita el rendimiento medido en la estrategia activa (sin argumento).
+        /// Solo admin. No-op si no hay estrategia configurada.
+        pub fn realize_yield(&mut self) -> Result<(), Vec<u8>> {
+            self.require_admin()?;
+            let strategy = self.strategy.get();
+            if strategy == Address::ZERO {
+                return Ok(());
+            }
+            let balance = strategy_balance_of(&*self, strategy);
+            let deployed = self.strategy_deployed.get();
+            let delta = logic::positive_yield_delta(balance, deployed);
+            if delta.is_zero() {
+                return Ok(());
+            }
+            let new_total = self.total_assets.get() + delta;
             self.total_assets.set(new_total);
+            self.strategy_deployed.set(balance);
             evm::log(YieldRealized {
-                added_assets,
+                added_assets: delta,
                 total_assets: new_total,
             });
             Ok(())
@@ -242,6 +355,38 @@ pub mod contract {
             Ok(())
         }
 
+        // ── Gobernanza (SDD §7.3) ─────────────────────────────────────────────
+
+        /// Nombra un nuevo administrador (dos pasos). Solo admin.
+        pub fn transfer_ownership(&mut self, new_owner: Address) -> Result<(), Vec<u8>> {
+            self.require_admin()?;
+            if new_owner == Address::ZERO {
+                return Err(b"zero_owner".to_vec());
+            }
+            self.pending_owner.set(new_owner);
+            evm::log(OwnershipTransferStarted {
+                previous_owner: msg::sender(),
+                new_owner,
+            });
+            Ok(())
+        }
+
+        /// Acepta la nominación; solo puede hacerlo la dirección nominada.
+        pub fn accept_ownership(&mut self) -> Result<(), Vec<u8>> {
+            let pending = self.pending_owner.get();
+            if msg::sender() != pending {
+                return Err(b"not_pending_owner".to_vec());
+            }
+            let previous = self.owner.get();
+            self.owner.set(pending);
+            self.pending_owner.set(Address::ZERO);
+            evm::log(OwnershipTransferred {
+                previous_owner: previous,
+                new_owner: pending,
+            });
+            Ok(())
+        }
+
         // ── Lectura ──────────────────────────────────────────────────────────
 
         pub fn strategy(&self) -> Address {
@@ -251,5 +396,16 @@ pub mod contract {
         pub fn usdc(&self) -> Address {
             self.usdc.get()
         }
+
+        pub fn pending_owner(&self) -> Address {
+            self.pending_owner.get()
+        }
+    }
+
+    fn read_u256(data: &[u8]) -> U256 {
+        if data.len() < 32 {
+            return U256::ZERO;
+        }
+        U256::from_be_slice(&data[..32])
     }
 }
