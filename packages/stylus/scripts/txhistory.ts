@@ -46,9 +46,14 @@ const KNOWN_ABI = [
   "function transferFrom(address,address,uint256) returns (bool)",
   "function mint(address,uint256) returns (bool)",
   "function redeemShares(uint256,address) returns (uint256)",
-  "function realizeYield(uint256) returns (bool)",
+  "function realizeYield() returns (bool)",
   "function setStrategy(address) returns (bool)",
   "function setPaused(bool) returns (bool)",
+  "function deployToStrategy(uint256) returns (bool)",
+  "function withdrawFromStrategy(uint256) returns (bool)",
+  "function withdrawAllFromStrategy() returns (bool)",
+  "function transferOwnership(address) returns (bool)",
+  "function acceptOwnership() returns (bool)",
 ] as const;
 
 const iface = new ethers.Interface(KNOWN_ABI);

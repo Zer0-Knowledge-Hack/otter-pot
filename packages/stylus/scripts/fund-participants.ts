@@ -65,9 +65,9 @@ async function main(): Promise<void> {
     throw new Error("Falta USDC_ADDRESS en el entorno o --usdc-addr");
   }
 
-  const usdcAmount = ethers.parseUnits(args["usdc"] || "10", 6);
-  const ethAmount = ethers.parseEther(args["eth"] || "0.01");
-  const waitMinutes = Number(args["wait-minutes"] || "20");
+  const usdcAmount = ethers.parseUnits(args["usdc"] || "2", 6);
+  const ethAmount = ethers.parseEther(args["eth"] || "0.004");
+  const waitMinutes = Number(args["wait-minutes"] || "5");
 
   const provider: JsonRpcProvider = new ethers.JsonRpcProvider(target.rpc);
   const owner = getSigner(target, "owner", provider);

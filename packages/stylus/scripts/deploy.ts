@@ -6,11 +6,16 @@
  * Hace, en orden:
  *   1. Deploy de los contratos (vía `cargo stylus deploy` dentro de WSL,
  *      porque en esta máquina cargo solo vive en WSL).
- *        - local  : mock_usdc + treasury_vault + challenge_pool
- *        - sepolia: treasury_vault + challenge_pool (sin mock, USDC real)
+ *        - local  : mock_usdc + mock_strategy + treasury_vault + challenge_pool
+ *        - sepolia: treasury_vault + challenge_pool + aave_strategy (sin mock, USDC real)
  *   2. Guarda las direcciones en deployments/<chainId>_latest.json.
- *   3. Init automático: TreasuryVault.init(usdc) y
- *      ChallengePool.init(vault, usdc, commissionBps).
+ *   3. Init automático:
+ *        - TreasuryVault.init(usdc)
+ *        - Strategy.init(usdc) / Strategy.init(pool, usdc, atoken)
+ *        - Strategy.setVault(vault)
+ *        - TreasuryVault.setStrategy(strategy)
+ *        - ChallengePool.init(vault, usdc, commissionBps)
+ *   4. Despliegue inicial de capital en la estrategia (opcional, solo local).
  *
  * Todo el flujo es un solo comando; no hacen falta pasos extra.
  */
@@ -31,16 +36,38 @@ const RATE_BPS = 500n; // 500 bps = 5 %
 // base fee real). Se ajusta con la env OTT_DEPLOY_MAXFEE_GWEI o flag --max-fee.
 const DEFAULT_MAX_FEE_GWEI = "1";
 
-const VAULT_ABI = ["function init(address) returns (bool)"] as const;
+// Direcciones de Aave V3 en Arbitrum Sepolia (oficiales: bgd-labs/aave-address-book)
+const AAVE_V3_POOL_SEPOLIA = "0xBfC91D59fdAA134A4ED45f7B584cAf96D7792Eff";
+const USDC_SEPOLIA = "0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d";
+const AUSDC_SEPOLIA = "0x460b97BD498E1157530AEb3086301d5225b91216"; // aUSDC oficial
+
+const VAULT_ABI = [
+  "function init(address) returns (bool)",
+  "function setStrategy(address) returns (bool)",
+] as const;
+
 const POOL_ABI = ["function init(address,address,uint256) returns (bool)"] as const;
+
+const STRATEGY_ABI = [
+  "function init(address) returns (bool)",
+  "function init(address,address,address) returns (bool)",
+  "function setVault(address) returns (bool)",
+] as const;
 
 interface InitVault {
   connect(signer: Wallet): InitVault;
   init(usdc: string): Promise<ContractTransactionResponse>;
+  setStrategy(strategy: string): Promise<ContractTransactionResponse>;
 }
 interface InitPool {
   connect(signer: Wallet): InitPool;
   init(vault: string, usdc: string, rate: bigint): Promise<ContractTransactionResponse>;
+}
+interface InitStrategy {
+  connect(signer: Wallet): InitStrategy;
+  init(usdc: string): Promise<ContractTransactionResponse>;
+  init(pool: string, usdc: string, atoken: string): Promise<ContractTransactionResponse>;
+  setVault(vault: string): Promise<ContractTransactionResponse>;
 }
 
 const LINUX_CONTRACTS = path
@@ -64,8 +91,6 @@ async function cargoDeploy(
   maxFeeGwei: string,
 ): Promise<string> {
   console.log(`\n🚀 Desplegando ${name}…`);
-  // Copia limpia del source a disco nativo de WSL (evita la lentitud del mount 9p
-  // y garantiza una única raíz de workspace antes de compilar).
   const script = [
     `rm -rf ${TMP_WORKSPACE}/work`,
     `mkdir -p ${TMP_WORKSPACE}/work`,
@@ -89,25 +114,74 @@ async function initContracts(
   usdcAddr: string,
   vaultAddr: string,
   poolAddr: string,
+  strategyAddr: string,
+  /** Con mocks la estrategia se inicializa con solo el USDC; con Aave, con pool+usdc+atoken. */
+  usaMock: boolean,
 ): Promise<void> {
   const vault: InitVault = new ethers.Contract(vaultAddr, VAULT_ABI, owner) as unknown as InitVault;
   const pool: InitPool = new ethers.Contract(poolAddr, POOL_ABI, owner) as unknown as InitPool;
+  const strategy: InitStrategy = new ethers.Contract(strategyAddr, STRATEGY_ABI, owner) as unknown as InitStrategy;
 
-  for (const step of [
-    ["TreasuryVault.init(usdc)", () => vault.init(usdcAddr)],
-    ["ChallengePool.init(vault, usdc, rate)", () => pool.init(vaultAddr, usdcAddr, RATE_BPS)],
-  ] as const) {
-    const [label, run] = step;
-    console.log(`\n── ${label} ──`);
-    try {
-      const tx = await run();
-      const receipt = await tx.wait();
-      if (!receipt) throw new Error("sin receipt");
-      console.log(`  ✔ ok (tx ${receipt.hash})`);
-    } catch (err) {
-      const msg = err instanceof Error ? err.message.split("\n")[0] : String(err);
-      console.log(`  ⚠ ${msg} (¿ya estaba inicializado?)`);
+  console.log("\n── Inicializando contratos ──");
+
+  // 1. TreasuryVault.init(usdc)
+  console.log("  TreasuryVault.init(usdc)…");
+  try {
+    const tx = await vault.init(usdcAddr);
+    await tx.wait();
+    console.log("    ✔ ok");
+  } catch (err) {
+    const msg = err instanceof Error ? err.message.split("\n")[0] : String(err);
+    console.log(`    ⚠ ${msg} (¿ya estaba inicializado?)`);
+  }
+
+  // 2. Strategy.init(...)
+  console.log(`  Strategy.init(${usaMock ? "usdc" : "pool, usdc, atoken"})…`);
+  try {
+    let tx: ContractTransactionResponse;
+    if (usaMock) {
+      tx = await strategy.init(usdcAddr);
+    } else {
+      tx = await strategy.init(AAVE_V3_POOL_SEPOLIA, USDC_SEPOLIA, AUSDC_SEPOLIA);
     }
+    await tx.wait();
+    console.log("    ✔ ok");
+  } catch (err) {
+    const msg = err instanceof Error ? err.message.split("\n")[0] : String(err);
+    console.log(`    ⚠ ${msg} (¿ya estaba inicializado?)`);
+  }
+
+  // 3. Strategy.setVault(vault)
+  console.log("  Strategy.setVault(vault)…");
+  try {
+    const tx = await strategy.setVault(vaultAddr);
+    await tx.wait();
+    console.log("    ✔ ok");
+  } catch (err) {
+    const msg = err instanceof Error ? err.message.split("\n")[0] : String(err);
+    console.log(`    ⚠ ${msg} (¿ya estaba configurado?)`);
+  }
+
+  // 4. TreasuryVault.setStrategy(strategy)
+  console.log("  TreasuryVault.setStrategy(strategy)…");
+  try {
+    const tx = await vault.setStrategy(strategyAddr);
+    await tx.wait();
+    console.log("    ✔ ok");
+  } catch (err) {
+    const msg = err instanceof Error ? err.message.split("\n")[0] : String(err);
+    console.log(`    ⚠ ${msg} (¿ya estaba configurado?)`);
+  }
+
+  // 5. ChallengePool.init(vault, usdc, rate)
+  console.log("  ChallengePool.init(vault, usdc, rate)…");
+  try {
+    const tx = await pool.init(vaultAddr, usdcAddr, RATE_BPS);
+    await tx.wait();
+    console.log("    ✔ ok");
+  } catch (err) {
+    const msg = err instanceof Error ? err.message.split("\n")[0] : String(err);
+    console.log(`    ⚠ ${msg} (¿ya estaba inicializado?)`);
   }
 }
 
@@ -124,7 +198,6 @@ export default async function deployScript(
       ? (arbitrumNitro.accounts[0] as { privateKey?: string }).privateKey ?? ""
       : getPrivateKey("arbitrumSepolia")).trim() ?? "";
   if (!privateKey) throw new Error("Falta la clave privada para el deploy");
-  // cargo stylus / ethers esperan 0x + 64 hex; aceptamos también 64 hex sin 0x.
   const normalizedKey =
     (privateKey.startsWith("0x") || privateKey.startsWith("0X")
       ? privateKey
@@ -141,14 +214,20 @@ export default async function deployScript(
     console.log(`   Owner: ${derived}  bal: ${(await new ethers.JsonRpcProvider(target.rpc).getBalance(derived)).toString()} wei`);
   }
 
-  // En testnet se despliega el mock salvo que se indique un USDC ya existente.
-  // Sin eso no hay forma de financiar a los participantes de una demo: el USDC
-  // real de una testnet también se pide por faucet, y eso es una dependencia más.
+  // En testnet hay dos caminos, y el que se toma depende de si se indicó un USDC:
+  //
+  //   · con --usdc (o USDC_ADDRESS): el USDC real de la red, con la estrategia de
+  //     Aave apuntando al pool oficial. Es el que rinde de verdad.
+  //   · sin indicarlo: mock de USDC y de estrategia. El USDC real de una testnet
+  //     también se pide por faucet, así que este camino permite probar el ciclo
+  //     completo sin depender de eso.
+  //
+  // En local siempre van los mocks: no hay un Aave al que apuntar.
   const usdcIndicado = raw["usdc"] ?? process.env["USDC_ADDRESS"];
-  const contracts =
-    target.isLocal || !usdcIndicado
-      ? ["mock_usdc", "treasury_vault", "challenge_pool"]
-      : ["treasury_vault", "challenge_pool"];
+  const usaMock = target.isLocal || !usdcIndicado;
+  const contracts = usaMock
+    ? ["mock_usdc", "mock_strategy", "treasury_vault", "challenge_pool"]
+    : ["treasury_vault", "challenge_pool", "aave_strategy"];
 
   console.log("==========================================================");
   console.log("   OtterPot — deploy completo");
@@ -187,12 +266,15 @@ export default async function deployScript(
     record["mock_usdc"]?.address ??
     raw["usdc"] ??
     process.env["USDC_ADDRESS"] ??
-    undefined;
+    (usaMock ? undefined : USDC_SEPOLIA);
   const vaultAddr = record["treasury_vault"]?.address;
   const poolAddr = record["challenge_pool"]?.address;
+  const strategyAddr = usaMock
+    ? record["mock_strategy"]?.address
+    : record["aave_strategy"]?.address;
 
-  if (!usdcAddr || !vaultAddr || !poolAddr) {
-    console.error("\n❌ No se pudo inicializar: faltan direcciones de USDC/vault/pool.");
+  if (!usdcAddr || !vaultAddr || !poolAddr || !strategyAddr) {
+    console.error("\n❌ No se pudo inicializar: faltan direcciones de USDC/vault/pool/strategy.");
     console.error("   En testnet pasa el USDC con --usdc o la variable USDC_ADDRESS.");
     process.exit(1);
   }
@@ -201,7 +283,35 @@ export default async function deployScript(
   const owner = new ethers.Wallet(normalizedKey, provider);
 
   console.log("\nInicializando contratos…");
-  await initContracts(owner, usdcAddr, vaultAddr, poolAddr);
+  await initContracts(owner, usdcAddr, vaultAddr, poolAddr, strategyAddr, usaMock);
+
+  // 4) Despliegue inicial de capital en la estrategia (solo local, opcional)
+  if (target.isLocal) {
+    console.log("\n── Despliegue inicial de capital en estrategia (opcional) ──");
+    const deployInitial = raw["deploy-initial"] ?? "true";
+    if (deployInitial === "true") {
+      const VAULT_FULL_ABI = [
+        "function usdc() view returns (address)",
+        "function totalAssets() view returns (uint256)",
+        "function deployToStrategy(uint256) returns (bool)",
+      ] as const;
+      const vaultFull: any = new ethers.Contract(vaultAddr, VAULT_FULL_ABI, owner);
+      const totalAssets = await vaultFull.totalAssets();
+      if (totalAssets > 0n) {
+        console.log(`  Desplegando ${ethers.formatUnits(totalAssets, 6)} USDC en estrategia…`);
+        try {
+          const tx = await vaultFull.deployToStrategy(totalAssets);
+          await tx.wait();
+          console.log("    ✔ Capital desplegado en estrategia");
+        } catch (err) {
+          const msg = err instanceof Error ? err.message.split("\n")[0] : String(err);
+          console.log(`    ⚠ ${msg}`);
+        }
+      } else {
+        console.log("  Vault sin fondos, se omite deploy inicial");
+      }
+    }
+  }
 
   console.log("\n==========================================================");
   console.log("   Resumen del deploy");
@@ -209,6 +319,6 @@ export default async function deployScript(
     console.log(`   · ${name}: ${record[name]!.address}`);
   }
   console.log(`   · USDC: ${usdcAddr}`);
-  console.log("   ✅ Listo. Los contratos están desplegados e inicializados.");
+  console.log("   ✅ Listo. Los contratos están desplegados, inicializados y cableados.");
   console.log("==========================================================");
 }

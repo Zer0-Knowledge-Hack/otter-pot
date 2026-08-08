@@ -135,6 +135,8 @@ mod tests {
     use super::*;
     use alloy_primitives::{Address, U256};
 
+    // ── 0. Commission rate validation ────────────────────────────────────────
+
     // ── Helpers ──────────────────────────────────────────────────────────────
 
     fn addr(n: u8) -> Address {

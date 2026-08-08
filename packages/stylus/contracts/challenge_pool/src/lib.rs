@@ -2,15 +2,15 @@
 #![cfg_attr(all(target_arch = "wasm32", not(feature = "export-abi")), no_main)]
 
 // `alloc` is a no_std dependency, only needed on WASM.
-#[cfg(target_arch = "wasm32")]
+#[cfg(any(target_arch = "wasm32", feature = "export-abi"))]
 extern crate alloc;
 
 /// Pure business logic: no EVM calls, testable on native target.
 pub mod logic;
 
 // ── Contract code, compiled only on the wasm32 target ───────────────────────
-#[cfg(target_arch = "wasm32")]
-mod contract {
+#[cfg(any(target_arch = "wasm32", feature = "export-abi"))]
+pub mod contract {
     use super::logic;
     use alloy_primitives::{Address, U256};
     use alloy_sol_types::{sol, SolCall};
@@ -73,6 +73,14 @@ mod contract {
         );
         event OperatorAdded(address indexed operator);
         event OperatorRemoved(address indexed operator);
+        event CommissionRateUpdated(
+            uint256 indexed previous_rate,
+            uint256 indexed new_rate
+        );
+        event TreasuryVaultUpdated(
+            address indexed previous_vault,
+            address indexed new_vault
+        );
     }
 
     // ── Storage ───────────────────────────────────────────────────────────────
@@ -181,10 +189,28 @@ mod contract {
 
         pub fn set_commission_rate(&mut self, rate_bps: U256) -> Result<(), Vec<u8>> {
             self.require_owner()?;
-            if rate_bps > U256::from(1_000u64) {
-                return Err(b"rate_too_high".to_vec());
-            }
+            let previous_rate = self.base_commission_rate.get();
             self.base_commission_rate.set(rate_bps);
+            evm::log(CommissionRateUpdated {
+                previous_rate,
+                new_rate: rate_bps,
+            });
+            Ok(())
+        }
+
+        /// Permite al owner actualizar la dirección del TreasuryVault
+        /// (útil cuando se redeploya el vault sin redeployar el pool).
+        pub fn set_treasury_vault(&mut self, new_vault: Address) -> Result<(), Vec<u8>> {
+            self.require_owner()?;
+            if new_vault == Address::ZERO {
+                return Err(b"vault_is_zero".to_vec());
+            }
+            let previous_vault = self.treasury_vault.get();
+            self.treasury_vault.set(new_vault);
+            evm::log(TreasuryVaultUpdated {
+                previous_vault,
+                new_vault,
+            });
             Ok(())
         }
 
@@ -473,6 +499,10 @@ mod contract {
         pub fn is_operator(&self, operator: Address) -> Result<bool, Vec<u8>> {
             Ok(self.operators.get(operator))
         }
+
+        pub fn commission_rate(&self) -> Result<U256, Vec<u8>> {
+            Ok(self.base_commission_rate.get())
+        }
     }
 
     fn read_u256(data: &[u8]) -> U256 {
@@ -482,4 +512,3 @@ mod contract {
         U256::from_be_slice(&data[..32])
     }
 }
-
