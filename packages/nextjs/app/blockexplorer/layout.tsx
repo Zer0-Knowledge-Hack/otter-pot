@@ -1,4 +1,5 @@
 import { getMetadata } from "~~/utils/scaffold-eth/getMetadata";
+import { ScaffoldEthAppWithProviders } from "~~/components/ScaffoldEthAppWithProviders";
 
 export const metadata = getMetadata({
   title: "Block Explorer",
@@ -6,7 +7,8 @@ export const metadata = getMetadata({
 });
 
 const BlockExplorerLayout = ({ children }: { children: React.ReactNode }) => {
-  return <>{children}</>;
+  // Los providers del scaffold viven en las rutas heredadas, no en el layout raíz.
+  return <ScaffoldEthAppWithProviders>{children}</ScaffoldEthAppWithProviders>;
 };
 
 export default BlockExplorerLayout;

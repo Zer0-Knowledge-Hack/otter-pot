@@ -1,7 +1,6 @@
 import { Inter, Orbitron } from "next/font/google";
 import "@rainbow-me/rainbowkit/styles.css";
 import { Metadata } from "next";
-import { ScaffoldEthAppWithProviders } from "~~/components/ScaffoldEthAppWithProviders";
 import { ThemeProvider } from "~~/components/ThemeProvider";
 import "~~/styles/globals.css";
 
@@ -59,16 +58,26 @@ export const metadata: Metadata = {
   },
 };
 
-const ScaffoldEthApp = ({ children }: { children: React.ReactNode }) => {
+/**
+ * Layout raíz — deliberadamente sin los providers del scaffold.
+ *
+ * `ScaffoldEthAppWithProviders` devuelve `null` hasta montar en el cliente, así que
+ * cualquier página `"use client"` que cuelgue de él no emite nada en el servidor y
+ * queda en blanco si algo falla al hidratar — que es exactamente lo que le pasaba a
+ * `/depositar`. Las páginas de OtterPot no necesitan wagmi ni RainbowKit: hablan con
+ * la cadena por viem directo (`STACK.md` §1).
+ *
+ * Los providers se movieron a las rutas heredadas que sí los usan: `/debug` y
+ * `/blockexplorer`, cada una con su propio layout.
+ */
+const RootLayout = ({ children }: { children: React.ReactNode }) => {
   return (
     <html suppressHydrationWarning>
       <body className={`${inter.variable} ${orbitron.variable} font-sans`} suppressHydrationWarning>
-        <ThemeProvider>
-          <ScaffoldEthAppWithProviders>{children}</ScaffoldEthAppWithProviders>
-        </ThemeProvider>
+        <ThemeProvider>{children}</ThemeProvider>
       </body>
     </html>
   );
 };
 
-export default ScaffoldEthApp;
+export default RootLayout;
