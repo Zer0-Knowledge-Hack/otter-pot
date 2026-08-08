@@ -21,9 +21,10 @@ const baseUrl = process.env.VERCEL_URL
   : `http://localhost:${process.env.PORT || 3000}`;
 const imageUrl = `${baseUrl}/thumbnail.jpg`;
 
-const title = "Create Stylus Dapp";
-const titleTemplate = "%s | Create Stylus Dapp";
-const description = "Built with 🏗 Scaffold-Stylus";
+const title = "OtterPot — El pozo existe antes de que haya un ganador";
+const titleTemplate = "%s | OtterPot";
+const description =
+  "Retos con pozo compartido dentro de Telegram. El dinero queda bloqueado en un contrato en Arbitrum: nadie lo custodia y nadie puede desviarlo.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(baseUrl),
