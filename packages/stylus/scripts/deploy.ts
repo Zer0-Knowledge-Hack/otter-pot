@@ -283,6 +283,7 @@ export default async function deployScript(
         "function totalAssets() view returns (uint256)",
         "function deployToStrategy(uint256) returns (bool)",
       ] as const;
+      // eslint-disable-next-line @typescript-eslint/no-explicit-any
       const vaultFull: any = new ethers.Contract(vaultAddr, VAULT_FULL_ABI, owner);
       const totalAssets = await vaultFull.totalAssets();
       if (totalAssets > 0n) {
