@@ -23,6 +23,16 @@ target/
 .next/
 **/out/
 
+/.firebase
+
+packages/nextjs
+**/out/
+.env.*
+.firebaserc
+firebase.json
+
+
+
 # Cloudflare Worker
 .wrangler/
 .dev.vars

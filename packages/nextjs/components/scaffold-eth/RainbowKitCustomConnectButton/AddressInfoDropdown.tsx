@@ -28,9 +28,17 @@ type AddressInfoDropdownProps = {
   displayName: string;
   ensAvatar?: string;
   onSwitchAccount: () => void;
+  /** Botón compacto para headers móviles (sin marco 220px) */
+  compact?: boolean;
 };
 
-export const AddressInfoDropdown = ({ address, ensAvatar, displayName, onSwitchAccount }: AddressInfoDropdownProps) => {
+export const AddressInfoDropdown = ({
+  address,
+  ensAvatar,
+  displayName,
+  onSwitchAccount,
+  compact = false,
+}: AddressInfoDropdownProps) => {
   const { disconnect } = useDisconnect();
   const { connector } = useAccount();
   const checkSumAddress = getAddress(address);
@@ -50,84 +58,101 @@ export const AddressInfoDropdown = ({ address, ensAvatar, displayName, onSwitchA
 
   useOutsideClick(dropdownRef, closeDropdown);
 
+  const shortLabel = isENS(displayName)
+    ? displayName
+    : `${checkSumAddress?.slice(0, 4)}…${checkSumAddress?.slice(-4)}`;
+
   return (
     <>
       <div ref={dropdownRef} className={`dropdown dropdown-end leading-3 ${isOpen ? "dropdown-open" : ""}`}>
-        <label
-          className="dropdown-toggle gap-0 !h-auto"
-          onClick={() => setIsOpen(prev => !prev)}
-          style={{
-            position: "relative",
-            width: "220px",
-            height: "46px",
-            display: "flex",
-            alignItems: "center",
-            padding: "0 20px",
-            cursor: "pointer",
-            alignSelf: "center",
-          }}
-        >
-          {/* Angular border SVG */}
-          <svg
-            xmlns="http://www.w3.org/2000/svg"
-            width="220"
-            height="46"
-            viewBox="0 0 220 46"
-            fill="none"
-            style={{
-              position: "absolute",
-              top: "-7px",
-              left: 0,
-              pointerEvents: "none",
-            }}
+        {compact ? (
+          <button
+            type="button"
+            className="flex h-9 max-w-[9.5rem] items-center gap-1.5 rounded-xl border border-otter-border bg-otter-card px-2 text-xs font-semibold text-otter-text transition hover:border-otter-action/50"
+            onClick={() => setIsOpen(prev => !prev)}
+            aria-label="Wallet conectada"
           >
-            <path
-              d="M196.132 0.5L219.5 23.2109V45.5H24.0811L0.5 22.7871V0.5H196.132Z"
-              stroke="#30B4ED"
-              strokeWidth="1"
-            />
-          </svg>
-
-          {/* Content */}
-          <div
+            <BlockieAvatar address={checkSumAddress} size={22} ensImage={ensAvatar} />
+            <span className="truncate">{shortLabel}</span>
+            <ChevronDownIcon className="h-3.5 w-3.5 shrink-0 text-otter-muted" />
+          </button>
+        ) : (
+          <label
+            className="dropdown-toggle gap-0 !h-auto"
+            onClick={() => setIsOpen(prev => !prev)}
             style={{
+              position: "relative",
+              width: "220px",
+              height: "46px",
               display: "flex",
               alignItems: "center",
-              gap: "8px",
-              width: "100%",
-              height: "100%",
-              zIndex: 1,
-              position: "relative",
+              padding: "0 20px",
+              cursor: "pointer",
+              alignSelf: "center",
             }}
           >
-            <BlockieAvatar address={checkSumAddress} size={30} ensImage={ensAvatar} />
-            <span
+            {/* Angular border SVG */}
+            <svg
+              xmlns="http://www.w3.org/2000/svg"
+              width="220"
+              height="46"
+              viewBox="0 0 220 46"
+              fill="none"
               style={{
-                color: isDarkMode ? "#FFF" : "black",
-                fontFamily: "Orbitron, sans-serif",
-                fontSize: "14px",
-                fontWeight: 700,
-                lineHeight: "1",
-                textTransform: "uppercase",
-                display: "flex",
-                alignItems: "center",
-                height: "30px",
-                whiteSpace: "nowrap",
-                minWidth: 0,
+                position: "absolute",
+                top: "-7px",
+                left: 0,
+                pointerEvents: "none",
               }}
             >
-              {isENS(displayName) ? displayName : checkSumAddress?.slice(0, 6) + "..." + checkSumAddress?.slice(-4)}
-            </span>
-            <ChevronDownIcon
-              className="h-4 w-4"
+              <path
+                d="M196.132 0.5L219.5 23.2109V45.5H24.0811L0.5 22.7871V0.5H196.132Z"
+                stroke="#30B4ED"
+                strokeWidth="1"
+              />
+            </svg>
+
+            {/* Content */}
+            <div
               style={{
-                color: isDarkMode ? "#FFF" : "black",
-                height: "16px",
-                width: "16px",
+                display: "flex",
+                alignItems: "center",
+                gap: "8px",
+                width: "100%",
+                height: "100%",
+                zIndex: 1,
+                position: "relative",
               }}
-            />
-          </div>
-        </label>
+            >
+              <BlockieAvatar address={checkSumAddress} size={30} ensImage={ensAvatar} />
+              <span
+                style={{
+                  color: isDarkMode ? "#FFF" : "black",
+                  fontFamily: "Orbitron, sans-serif",
+                  fontSize: "14px",
+                  fontWeight: 700,
+                  lineHeight: "1",
+                  textTransform: "uppercase",
+                  display: "flex",
+                  alignItems: "center",
+                  height: "30px",
+                  whiteSpace: "nowrap",
+                  minWidth: 0,
+                }}
+              >
+                {isENS(displayName) ? displayName : checkSumAddress?.slice(0, 6) + "..." + checkSumAddress?.slice(-4)}
+              </span>
+              <ChevronDownIcon
+                className="h-4 w-4"
+                style={{
+                  color: isDarkMode ? "#FFF" : "black",
+                  height: "16px",
+                  width: "16px",
+                }}
+              />
+            </div>
+          </label>
+        )}
         <ul
           tabIndex={0}
           className="dropdown-content menu z-[2] p-2 mt-4 gap-1"
