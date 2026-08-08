@@ -24,28 +24,37 @@
  * No usar contra fondos reales hasta que Moises confirme el fix.
  */
 
-import { createWalletClient, getAddress, http, isAddress, parseAbi } from "viem";
+import { createWalletClient, getAddress, http, isAddress, parseAbiItem } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { arbitrumSepolia } from "viem/chains";
-import type { Address, Chain, Hex } from "viem";
+import type { Abi, Address, Chain, Hex } from "viem";
 import { getChallengeStatus } from "./confirmations";
 import type { ChallengeId, ConfirmationStore } from "./confirmations";
+import challengePoolFunctionsAbi from "../contracts/ChallengePool.abi.json";
 
 /**
- * ABI confirmado por revisión directa del código Rust del contrato + `IChallengePool.sol`
- * (docs/backend-plan.md, Fase 3). No cambiar nombres ni tipos sin re-verificar contra el Rust.
+ * ABI de `ChallengePool` — desde 2026-08-07 se importa el archivo real que exporta el
+ * pipeline de deploy de Moises (`packages/worker/contracts/ChallengePool.abi.json`,
+ * generado por `packages/stylus/scripts/export_abi.ts`) en vez de mantener una copia
+ * escrita a mano. Reduce el riesgo de que se desincronice con el contrato real.
+ *
+ * Ese archivo solo trae funciones, no eventos — `ChallengeResolved` se agrega acá,
+ * verificado contra `challenge_pool/IChallengePool.sol` (sección de eventos).
  *
  * ⚠️ Los scripts TS del repo (`integration-test-usdc.ts:52`) declaran
- * `confirmResult(...) returns (bool)` — es incorrecto, el Rust retorna `()`. No copiar esa firma.
+ * `confirmResult(...) returns (bool)` — es incorrecto, el Rust retorna `()`. El JSON
+ * importado ya lo tiene bien (`outputs: []`), no hay que corregir nada acá.
  * El depósito es en USDC (ERC-20), no ETH nativo: ninguna tx del worker hacia este contrato
  * lleva `value`.
  */
-export const CHALLENGE_POOL_ABI = parseAbi([
-  "function confirmResult(uint256 challengeId, address winner)",
-  "function isOperator(address operator) view returns (bool)",
-  "function challengeStatus(uint256 challengeId) view returns (uint8)",
+const CHALLENGE_RESOLVED_EVENT = parseAbiItem(
   "event ChallengeResolved(uint256 indexed challengeId, address indexed winner, uint256 totalPayout, uint256 commission)",
-] as const);
+);
+
+export const CHALLENGE_POOL_ABI = [
+  ...(challengePoolFunctionsAbi as Abi),
+  CHALLENGE_RESOLVED_EVENT,
+] as const satisfies Abi;
 
 /** Selector esperado de `confirmResult(uint256,address)` — verificado en el plan y en los tests. */
 export const CONFIRM_RESULT_SELECTOR = "0x9c338d6b";
