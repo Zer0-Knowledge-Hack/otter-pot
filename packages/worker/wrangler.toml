@@ -3,13 +3,11 @@ main = "src/index.ts"
 compatibility_date = "2025-08-01"
 compatibility_flags = ["nodejs_compat"]
 
-# KV para estado de confirmaciones por reto (Fase 2 del plan — docs/backend-plan.md).
-# El id real de namespace se crea con `wrangler kv namespace create CONFIRMATIONS`
-# y se pega aquí antes de W2.1. Placeholder para que `wrangler dev` no truene mientras
-# no exista: se comenta hasta que el namespace real esté creado.
-# [[kv_namespaces]]
-# binding = "CONFIRMATIONS"
-# id = "<pendiente>"
+# KV: estado del bot (config por grupo, wallets, armados, historial).
+# Sin esto el estado vive en memoria y se pierde entre isolates de Workers.
+[[kv_namespaces]]
+binding = "BOT_KV"
+id = "4d534dc1410c4776b80a5f779d749b5a"
 
 [vars]
 ENVIRONMENT = "development"

@@ -18,7 +18,8 @@
 import { InMemoryConfirmationStore } from "./confirmations";
 import { handleChallengeStatus } from "./status";
 import { handleTelegramWebhook } from "./telegram";
-import { InMemoryStore } from "./telegram/store";
+import { CloudflareKvStore, InMemoryStore } from "./telegram/store";
+import type { CloudflareKvNamespace, KeyValueStore } from "./telegram/store";
 import { TelegramApi } from "./telegram/api";
 import { registrarComandos } from "./telegram/comandos";
 
@@ -41,17 +42,25 @@ export interface Env {
   CHALLENGE_POOL_ADDRESS?: string;
   /** Token del pozo, para escalar montos por sus decimales. */
   USDC_ADDRESS?: string;
+  /** Namespace de KV con el estado del bot. Ausente en desarrollo: se usa memoria. */
+  BOT_KV?: CloudflareKvNamespace;
   // Todos los secretos vienen de `wrangler secret put`, nunca hardcodeados (AGENTS.md).
 }
 
-const confirmationStore = new InMemoryConfirmationStore();
-
 /**
- * Estado del bot: configuración por grupo y wallets vinculadas.
- * En memoria por ahora — no sobrevive entre isolates de Workers. Migrar a KV es
- * cambiar esta línea por `new CloudflareKvStore(env.BOT_KV)` (ver STACK.md §2.3).
+ * Estado del bot. En producción vive en KV; en desarrollo, en memoria.
+ *
+ * Un Worker desplegado corre en varios isolates y cada uno tendría su propia
+ * memoria: sin KV, quien vincula su wallet en un isolate no existe en el
+ * siguiente, y el mapeo entre los retos del grupo y sus id on-chain se pierde
+ * en cada reinicio. Por eso el binding manda cuando está.
  */
-const botStore = new InMemoryStore();
+function resolverStore(env: Env): KeyValueStore {
+  return env.BOT_KV ? new CloudflareKvStore(env.BOT_KV) : memoriaLocal;
+}
+
+const memoriaLocal = new InMemoryStore();
+const confirmationStore = new InMemoryConfirmationStore();
 
 const CHALLENGE_STATUS_PATH = /^\/challenges\/([^/]+)\/status$/;
 
@@ -64,7 +73,7 @@ export default {
     }
 
     if (url.pathname === "/telegram/webhook" && request.method === "POST") {
-      return handleTelegramWebhook(request, env, botStore, confirmationStore);
+      return handleTelegramWebhook(request, env, resolverStore(env), confirmationStore);
     }
 
     // Registro del menú de comandos. Es una operación de setup que se corre a mano
