@@ -14,6 +14,7 @@
 import { createPublicClient, createWalletClient, defineChain, http, parseAbi } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import type { Address, Chain, Hex, PublicClient } from "viem";
+import { arbitrumSepolia } from "viem/chains";
 import type { ConfirmResultWriter } from "../confirmTx";
 
 const ERC20_ABI = parseAbi(["function decimals() view returns (uint8)"] as const);
@@ -49,7 +50,8 @@ export interface ChainConfig {
   /** Token del pozo. Se necesita para leer sus decimales al escalar montos. */
   usdcAddress: Address;
   operatorPrivateKey: Hex;
-  chain?: Chain;
+  /** Obligatoria: sin esto, un default silencioso firma con la cadena equivocada. */
+  chain: Chain;
 }
 
 const PRIVATE_KEY_FORMAT = /^0x[0-9a-fA-F]{64}$/;
@@ -60,6 +62,24 @@ export interface ChainEnv {
   CHALLENGE_POOL_ADDRESS?: string;
   USDC_ADDRESS?: string;
   OPERATOR_PRIVATE_KEY?: string;
+  /** Id de la cadena. Debe coincidir con la del RPC o la firma se rechaza. */
+  CHAIN_ID?: string;
+}
+
+/**
+ * Resuelve la cadena a partir de su id.
+ *
+ * No es cosmético: viem firma la transacción con el chainId de esta definición, y
+ * si no coincide con el del RPC el nodo la rechaza con «invalid chain id for
+ * signer». Antes había un default silencioso a la cadena local, que funcionaba en
+ * el devnode y fallaba al apuntar a Sepolia — justo al mover la demo a testnet.
+ */
+export function resolverCadena(chainId: number | undefined): Chain {
+  if (chainId === arbitrumSepolia.id) return arbitrumSepolia;
+  if (chainId === arbitrumNitroLocal.id) return arbitrumNitroLocal;
+  throw new Error(
+    `cadena: CHAIN_ID ${chainId ?? "(ausente)"} no reconocido. Usá ${arbitrumNitroLocal.id} (local) o ${arbitrumSepolia.id} (Arbitrum Sepolia).`,
+  );
 }
 
 /**
@@ -67,8 +87,9 @@ export interface ChainEnv {
  * variable que falte: un error de configuración tiene que ser obvio, no un
  * `undefined` que reviente tres capas más abajo.
  */
-export function configDesdeEnv(env: ChainEnv, chain: Chain = arbitrumNitroLocal): ChainConfig {
-  const { CHAIN_RPC_URL, CHALLENGE_POOL_ADDRESS, USDC_ADDRESS, OPERATOR_PRIVATE_KEY } = env;
+export function configDesdeEnv(env: ChainEnv, chainOverride?: Chain): ChainConfig {
+  const { CHAIN_RPC_URL, CHALLENGE_POOL_ADDRESS, USDC_ADDRESS, OPERATOR_PRIVATE_KEY, CHAIN_ID } = env;
+  const chain = chainOverride ?? resolverCadena(CHAIN_ID ? Number(CHAIN_ID) : undefined);
 
   if (!CHAIN_RPC_URL) throw new Error("cadena: falta CHAIN_RPC_URL");
   if (!CHALLENGE_POOL_ADDRESS) throw new Error("cadena: falta CHALLENGE_POOL_ADDRESS");
@@ -121,7 +142,7 @@ export interface ChainClient {
 }
 
 export function crearChainClient(config: ChainConfig): ChainClient {
-  const chain = config.chain ?? arbitrumNitroLocal;
+  const chain = config.chain;
   const account = privateKeyToAccount(config.operatorPrivateKey);
   const transport = http(config.rpcUrl);
 

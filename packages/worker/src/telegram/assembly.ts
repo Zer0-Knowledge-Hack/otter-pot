@@ -35,8 +35,16 @@ export interface Assembly {
   createdAt: number;
 }
 
-/** Mínimo para que un reto tenga sentido: alguien contra alguien. */
-export const MIN_PARTICIPANTES = 2;
+/**
+ * Mínimo para que un reto tenga sentido: alguien contra alguien.
+ *
+ * ⚠️ TEMPORAL: bajado a 1 para poder recorrer el ciclo con una sola cuenta.
+ * Volver a 2 antes de cualquier uso real — con un solo participante el reto no
+ * tiene rival: ganás tu propia plata menos la comisión, o sea que perdés por jugar.
+ * El caso de "reto de una sola persona" es ahorro, y necesita otra semántica
+ * (liberación por tiempo o meta cumplida), no simplemente este número en 1.
+ */
+export const MIN_PARTICIPANTES = 1;
 
 const ALFABETO = "abcdefghijkmnpqrstuvwxyz23456789"; // sin l/o/0/1: se confunden al leer
 

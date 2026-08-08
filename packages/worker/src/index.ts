@@ -33,6 +33,8 @@ export interface Env {
   CHAIN_RPC_URL?: string;
   /** URL pública de la Mini App (página de depósito). */
   MINIAPP_URL?: string;
+  /** Id de la cadena. Debe coincidir con el RPC o la firma se rechaza. */
+  CHAIN_ID?: string;
   /** Dirección del `ChallengePool` desplegado. */
   CHALLENGE_POOL_ADDRESS?: string;
   /** Token del pozo, para escalar montos por sus decimales. */
