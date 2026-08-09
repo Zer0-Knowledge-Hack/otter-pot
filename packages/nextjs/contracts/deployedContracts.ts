@@ -466,7 +466,7 @@ const deployedContracts = {
   },
   "421614": {
     AaveStrategy: {
-      address: "0x5abb4b394198a8cb93cdc202cd67dc5618d9b5ff",
+      address: "0x0b9d7689e1ab14202868ffb23db62ffc92aa22e7",
       txHash: "",
       abi: [
         {
@@ -579,7 +579,7 @@ const deployedContracts = {
       ],
     },
     ChallengePool: {
-      address: "0xbc0ce54d80b3f95067285297f6ec052e79ecef46",
+      address: "0x7f02be32247ca5c32468d69ef059e4a9114e56d4",
       txHash: "",
       abi: [
         {
@@ -797,7 +797,7 @@ const deployedContracts = {
       ],
     },
     TreasuryVault: {
-      address: "0xa30a7f61ae8b463b62701aebe3c42a00cf359a8f",
+      address: "0xcb002f054b25d699a4c986cebe3e1f03ac58b8f6",
       txHash: "",
       abi: [
         {

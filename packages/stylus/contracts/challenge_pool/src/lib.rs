@@ -121,7 +121,7 @@ pub mod contract {
     impl ChallengePool {
         fn require_operator(&self) -> Result<(), Vec<u8>> {
             if !self.operators.get(msg::sender()) {
-                return Err(b"not_an_operator".to_vec());
+                return Err(b"no_op".to_vec());
             }
             Ok(())
         }
@@ -161,7 +161,7 @@ pub mod contract {
             base_commission_rate: U256,
         ) -> Result<(), Vec<u8>> {
             if self.owner.get() != Address::ZERO {
-                return Err(b"already_initialized".to_vec());
+                return Err(b"inited".to_vec());
             }
             self.owner.set(msg::sender());
             self.treasury_vault.set(treasury_vault);
@@ -203,7 +203,7 @@ pub mod contract {
         pub fn set_treasury_vault(&mut self, new_vault: Address) -> Result<(), Vec<u8>> {
             self.require_owner()?;
             if new_vault == Address::ZERO {
-                return Err(b"vault_is_zero".to_vec());
+                return Err(b"vault0".to_vec());
             }
             let previous_vault = self.treasury_vault.get();
             self.treasury_vault.set(new_vault);
@@ -223,13 +223,13 @@ pub mod contract {
             participants_list: Vec<Address>,
         ) -> Result<U256, Vec<u8>> {
             if participants_list.is_empty() {
-                return Err(b"no_participants".to_vec());
+                return Err(b"nopart".to_vec());
             }
             if required_deposit.is_zero() {
-                return Err(b"zero_deposit".to_vec());
+                return Err(b"dep0".to_vec());
             }
             if required_deposit > U256::from(logic::MAX_DEPOSIT_WEI) {
-                return Err(b"deposit_exceeds_maximum".to_vec());
+                return Err(b"depmax".to_vec());
             }
 
             let challenge_id = self.next_challenge_id.get();
@@ -311,19 +311,18 @@ pub mod contract {
             // Pull USDC del participante al pool.
             let usdc = self.usdc.get();
             let data = self.usdc_transfer_from(sender, contract::address(), required_deposit);
-            call::call(&mut *self, usdc, &data).map_err(|_| b"usdc_pull_failed".to_vec())?;
+            call::call(&mut *self, usdc, &data).map_err(|_| b"pull".to_vec())?;
 
             // Todos financiaron: Bloqueado y fondos al vault (mint shares).
             if new_deposited == participant_count {
                 let total = total_pool(required_deposit, participant_count);
 
                 let approve = self.usdc_approve(self.treasury_vault.get(), total);
-                call::call(&mut *self, usdc, &approve).map_err(|_| b"approve_failed".to_vec())?;
+                call::call(&mut *self, usdc, &approve).map_err(|_| b"appr".to_vec())?;
 
                 let vault = self.treasury_vault.get();
                 let dep = ITreasuryVault::depositCall { assets: total }.abi_encode();
-                let out = call::call(&mut *self, vault, &dep)
-                    .map_err(|_| b"vault_deposit_failed".to_vec())?;
+                let out = call::call(&mut *self, vault, &dep).map_err(|_| b"vdep".to_vec())?;
                 let shares = read_u256(&out);
 
                 {
@@ -376,8 +375,7 @@ pub mod contract {
                 to: contract::address(),
             }
             .abi_encode();
-            let out = call::call(&mut *self, vault, &rede)
-                .map_err(|_| b"vault_redeem_failed".to_vec())?;
+            let out = call::call(&mut *self, vault, &rede).map_err(|_| b"vred".to_vec())?;
             let recovered = read_u256(&out);
 
             let rate = self.base_commission_rate.get();
@@ -386,7 +384,7 @@ pub mod contract {
             // Pagar USDC exclusivamente al ganador (SDD §11).
             let usdc = self.usdc.get();
             let pay = self.usdc_transfer(winner, winner_payout);
-            call::call(&mut *self, usdc, &pay).map_err(|_| b"winner_payout_failed".to_vec())?;
+            call::call(&mut *self, usdc, &pay).map_err(|_| b"pay".to_vec())?;
 
             evm::log(ChallengeResolved {
                 challenge_id,
@@ -426,8 +424,7 @@ pub mod contract {
                 to: contract::address(),
             }
             .abi_encode();
-            let out = call::call(&mut *self, vault, &rede)
-                .map_err(|_| b"vault_redeem_failed".to_vec())?;
+            let out = call::call(&mut *self, vault, &rede).map_err(|_| b"vred".to_vec())?;
             let recovered = read_u256(&out);
 
             let per_participant = refund_per_participant(recovered, participant_count);
@@ -459,13 +456,13 @@ pub mod contract {
             };
 
             if status != STATE_REEMBOLSADO {
-                return Err(b"not_refunded".to_vec());
+                return Err(b"noref".to_vec());
             }
             if !is_participant {
-                return Err(b"not_a_participant".to_vec());
+                return Err(b"nopart".to_vec());
             }
             if already_claimed {
-                return Err(b"already_claimed".to_vec());
+                return Err(b"claimed".to_vec());
             }
 
             let amount = per_participant;
@@ -485,7 +482,7 @@ pub mod contract {
             // Pagar USDC al participante.
             let usdc = self.usdc.get();
             let pay = self.usdc_transfer(sender, amount);
-            call::call(&mut *self, usdc, &pay).map_err(|_| b"refund_payout_failed".to_vec())?;
+            call::call(&mut *self, usdc, &pay).map_err(|_| b"refpay".to_vec())?;
 
             Ok(())
         }

@@ -69,19 +69,19 @@ pub fn validate_deposit(
     required_deposit: U256,
 ) -> Result<(), &'static str> {
     if status != STATE_ABIERTO {
-        return Err("challenge_not_open");
+        return Err("notopen");
     }
     if !is_participant {
-        return Err("not_a_participant");
+        return Err("nopart");
     }
     if already_deposited {
-        return Err("already_deposited");
+        return Err("deposited");
     }
     if sent_amount != required_deposit {
-        return Err("incorrect_deposit_amount");
+        return Err("incdep");
     }
     if sent_amount > U256::from(MAX_DEPOSIT_WEI) {
-        return Err("deposit_exceeds_maximum");
+        return Err("depmax");
     }
     Ok(())
 }
@@ -104,13 +104,13 @@ pub fn validate_confirm_result(
     winner_is_participant: bool,
 ) -> Result<(), &'static str> {
     if status != STATE_BLOQUEADO {
-        return Err("challenge_not_locked");
+        return Err("notlocked");
     }
     if winner == alloy_primitives::Address::ZERO {
-        return Err("winner_is_zero_address");
+        return Err("winzero");
     }
     if !winner_is_participant {
-        return Err("winner_not_participant");
+        return Err("winpart");
     }
     Ok(())
 }
@@ -120,10 +120,10 @@ pub fn validate_confirm_result(
 /// Checks: challenge is Bloqueado, deadline has passed.
 pub fn validate_refund(status: u8, deadline: U256, now: U256) -> Result<(), &'static str> {
     if status != STATE_BLOQUEADO {
-        return Err("challenge_not_locked");
+        return Err("notlocked");
     }
     if now <= deadline {
-        return Err("deadline_not_reached");
+        return Err("nodln");
     }
     Ok(())
 }
@@ -183,32 +183,32 @@ mod tests {
     #[test]
     fn deposit_rejected_if_challenge_not_open() {
         let res = validate_deposit(STATE_BLOQUEADO, true, false, eth(1), eth(1));
-        assert_eq!(res.unwrap_err(), "challenge_not_open");
+        assert_eq!(res.unwrap_err(), "notopen");
     }
 
     #[test]
     fn deposit_rejected_if_not_participant() {
         let res = validate_deposit(STATE_ABIERTO, false, false, eth(1), eth(1));
-        assert_eq!(res.unwrap_err(), "not_a_participant");
+        assert_eq!(res.unwrap_err(), "nopart");
     }
 
     #[test]
     fn deposit_rejected_if_already_deposited() {
         let res = validate_deposit(STATE_ABIERTO, true, true, eth(1), eth(1));
-        assert_eq!(res.unwrap_err(), "already_deposited");
+        assert_eq!(res.unwrap_err(), "deposited");
     }
 
     #[test]
     fn deposit_rejected_if_amount_wrong() {
         let res = validate_deposit(STATE_ABIERTO, true, false, eth(2), eth(1));
-        assert_eq!(res.unwrap_err(), "incorrect_deposit_amount");
+        assert_eq!(res.unwrap_err(), "incdep");
     }
 
     #[test]
     fn deposit_rejected_if_exceeds_maximum() {
         let huge = U256::from(MAX_DEPOSIT_WEI) + U256::from(1u64);
         let res = validate_deposit(STATE_ABIERTO, true, false, huge, huge);
-        assert_eq!(res.unwrap_err(), "deposit_exceeds_maximum");
+        assert_eq!(res.unwrap_err(), "depmax");
     }
 
     // ── 2b. ERC-20 USDC deposit path (SDD §6.5) ───────────────────────────────
@@ -225,7 +225,7 @@ mod tests {
     fn usdc_deposit_rejected_if_value_bytes_mismatch() {
         // A deposit that transfers a different amount than required.
         let res = validate_deposit(STATE_ABIERTO, true, false, usdc(30), usdc(25));
-        assert_eq!(res.unwrap_err(), "incorrect_deposit_amount");
+        assert_eq!(res.unwrap_err(), "incdep");
     }
 
     #[test]
@@ -245,13 +245,13 @@ mod tests {
     #[test]
     fn confirm_rejected_if_not_locked() {
         let res = validate_confirm_result(STATE_ABIERTO, addr(1), true);
-        assert_eq!(res.unwrap_err(), "challenge_not_locked");
+        assert_eq!(res.unwrap_err(), "notlocked");
     }
 
     #[test]
     fn confirm_rejected_if_winner_is_zero() {
         let res = validate_confirm_result(STATE_BLOQUEADO, Address::ZERO, true);
-        assert_eq!(res.unwrap_err(), "winner_is_zero_address");
+        assert_eq!(res.unwrap_err(), "winzero");
     }
 
     /// Guarda central de seguridad (SDD §11): un operador relaya una decisión ya tomada,
@@ -260,7 +260,7 @@ mod tests {
     #[test]
     fn confirm_rejected_if_winner_is_not_participant() {
         let res = validate_confirm_result(STATE_BLOQUEADO, addr(9), false);
-        assert_eq!(res.unwrap_err(), "winner_not_participant");
+        assert_eq!(res.unwrap_err(), "winpart");
     }
 
     /// El estado se valida antes que la pertenencia: un reto abierto falla por estado
@@ -268,7 +268,7 @@ mod tests {
     #[test]
     fn confirm_state_check_precedes_participant_check() {
         let res = validate_confirm_result(STATE_ABIERTO, addr(9), false);
-        assert_eq!(res.unwrap_err(), "challenge_not_locked");
+        assert_eq!(res.unwrap_err(), "notlocked");
     }
 
     // ── 4. Resolution payout (commission model, SDD §8) ──────────────────────
@@ -331,7 +331,7 @@ mod tests {
         let now = U256::from(1_000u64);
         let deadline = U256::from(2_000u64);
         let res = validate_refund(STATE_BLOQUEADO, deadline, now);
-        assert_eq!(res.unwrap_err(), "deadline_not_reached");
+        assert_eq!(res.unwrap_err(), "nodln");
     }
 
     #[test]
@@ -345,7 +345,7 @@ mod tests {
     #[test]
     fn refund_rejected_if_not_locked() {
         let res = validate_refund(STATE_ABIERTO, U256::ZERO, U256::from(1u64));
-        assert_eq!(res.unwrap_err(), "challenge_not_locked");
+        assert_eq!(res.unwrap_err(), "notlocked");
     }
 
     // ── 6. State constants sanity-check ──────────────────────────────────────

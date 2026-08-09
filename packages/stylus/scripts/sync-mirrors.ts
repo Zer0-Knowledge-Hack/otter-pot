@@ -35,7 +35,7 @@ function git(args: string[], cwd: string, allowUserError = false): { ok: boolean
     env: { ...process.env },
     maxBuffer: 64 * 1024 * 1024,
   });
-  if (!res.status || res.status !== 0) {
+  if (res.status !== 0) {
     if (!allowUserError) {
       console.error(`   git ${args.join(" ")} falló:\n${res.stderr}`);
     }

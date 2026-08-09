@@ -29,6 +29,7 @@ import { arbitrumNitro } from "../../nextjs/utils/scaffold-stylus/supportedChain
 import { parseArgs, resolveTarget } from "./otter";
 import { getPrivateKey } from "./utils/network";
 import { extractDeploymentInfo } from "./utils/contract";
+import { MIRRORS } from "./mirrors";
 
 const RATE_BPS = 500n; // 500 bps = 5 %
 // Techo de gas por gas (gwei). En testnets la base fee puede subir por encima del
@@ -77,6 +78,28 @@ const REPO_ROOT = path
 
 const TMP_WORKSPACE = "/tmp/otter-deploy";
 
+const CARGO_STYLUS_VERSION =
+  process.env["OTT_STYLUS_VERSION"] ?? "0.10.7";
+
+/**
+ * Si es true, el deploy corre en el contenedor Docker reproducible de
+ * cargo-stylus (sin --no-verify), de forma que el bytecode desplegado coincida
+ * byte a byte con el rebuild que hace Arbiscan al verificar. NO tiene nada que
+ * ver con la verificación de Etherscan: eso se hace después con
+ * `verify:etherscan` y los repos espejo.
+ * Default: true en testnet, false en local (el Nitro DevNode no lo necesita).
+ */
+const REPRODUCIBLE =
+  process.env["OTT_DEPLOY_REPRODUCIBLE"] === "1" ? true
+    : process.env["OTT_DEPLOY_REPRODUCIBLE"] === "0" ? false
+    : !targetIsLocalEnv();
+
+function targetIsLocalEnv(): boolean {
+  const raw = parseArgs(process.argv.slice(2));
+  const network = raw["network"] ?? raw["net"];
+  return typeof network !== "string" || !/^(sepolia|arbitrumSepolia|testnet)$/i.test(network);
+}
+
 function runWsl(script: string): string {
   return execFileSync("wsl", ["bash", "-lc", script], {
     encoding: "utf8",
@@ -91,16 +114,29 @@ async function cargoDeploy(
   maxFeeGwei: string,
 ): Promise<string> {
   console.log(`\n🚀 Desplegando ${name}…`);
-  const script = [
-    `rm -rf ${TMP_WORKSPACE}/work`,
-    `mkdir -p ${TMP_WORKSPACE}/work`,
-    `cp -r '${REPO_ROOT}/rust-toolchain.toml' '${REPO_ROOT}/Stylus.toml' ${TMP_WORKSPACE}/work/`,
-    `mkdir -p ${TMP_WORKSPACE}/work/packages/stylus/`,
-    `cp -r '${REPO_ROOT}/packages/stylus/contracts' ${TMP_WORKSPACE}/work/packages/stylus/`,
-    `cd ${TMP_WORKSPACE}/work/packages/stylus/contracts/${name}`,
-    `cargo stylus deploy --endpoint '${rpc}' --private-key '${privateKey}' --no-verify --max-fee-per-gas-gwei=${maxFeeGwei}`,
-  ].join(" && ");
-  const out = runWsl(script);
+  const mirror = MIRRORS.find((m) => m.contractName === name);
+  const script: string[] = [];
+  if (mirror) {
+    // Testnet (reproducible): desplegar desde un clon del repo espejo de GitHub.
+    // El mirror es exactamente lo que Arbiscan clona al verificar (LF, raíz = crate),
+    // así el bytecode desplegado coincide byte a byte con el rebuild del verificador.
+    script.push(`rm -rf ${TMP_WORKSPACE}/mirror/${name}`);
+    script.push(`git clone --depth 1 ${mirror.repoUrl}.git ${TMP_WORKSPACE}/mirror/${name}`);
+    script.push(`cd ${TMP_WORKSPACE}/mirror/${name}`);
+    script.push(`git checkout ${mirror.branch}`);
+  } else {
+    // Local/mocks: staging desde el fuente local.
+    script.push(`rm -rf ${TMP_WORKSPACE}/work`);
+    script.push(`mkdir -p ${TMP_WORKSPACE}/work`);
+    script.push(`cp -r '${REPO_ROOT}/rust-toolchain.toml' '${REPO_ROOT}/Stylus.toml' ${TMP_WORKSPACE}/work/`);
+    script.push(`mkdir -p ${TMP_WORKSPACE}/work/packages/stylus/`);
+    script.push(`cp -r '${REPO_ROOT}/packages/stylus/contracts' ${TMP_WORKSPACE}/work/packages/stylus/`);
+    script.push(`rm -rf ${TMP_WORKSPACE}/work/packages/stylus/contracts/target`);
+    script.push(`cd ${TMP_WORKSPACE}/work/packages/stylus/contracts/${name}`);
+    script.push(`cp ${TMP_WORKSPACE}/work/Stylus.toml ${TMP_WORKSPACE}/work/rust-toolchain.toml .`);
+  }
+  script.push(`cargo stylus deploy --endpoint '${rpc}' --private-key '${privateKey}'${REPRODUCIBLE ? "" : " --no-verify"} --max-fee-per-gas-gwei=${maxFeeGwei} --cargo-stylus-version ${CARGO_STYLUS_VERSION}`);
+  const out = runWsl(script.join(" && "));
   const info = extractDeploymentInfo(out);
   if (!info) {
     throw new Error(
