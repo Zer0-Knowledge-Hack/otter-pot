@@ -1,4 +1,4 @@
-import { PublicClient, WalletClient } from 'viem';
+import { Account, Chain, HttpTransport, PublicClient, WalletClient } from 'viem';
 import { treasuryVaultAbi, usdcAbi } from './abi';
 import { Env } from './config';
 
@@ -13,8 +13,8 @@ export type SweepResult = {
 
 export async function executeSweep(
   env: Env,
-  publicClient: PublicClient,
-  walletClient: WalletClient
+  publicClient: PublicClient<HttpTransport, Chain>,
+  walletClient: WalletClient<HttpTransport, Chain, Account>
 ): Promise<SweepResult> {
   const vaultAddress = env.VAULT_ADDRESS as `0x${string}`;
   const usdcAddress = env.USDC_ADDRESS as `0x${string}`;
@@ -63,17 +63,19 @@ export async function executeSweep(
       abi: treasuryVaultAbi,
       functionName: 'deployToStrategy',
       args: [idleBalance],
+      chain: walletClient.chain,
     });
 
     await publicClient.waitForTransactionReceipt({ hash: deployHash });
 
     // 5. Realize yield to update vault accounting
-    let realizeHash: string | undefined;
+    let realizeHash: `0x${string}` | undefined;
     try {
       realizeHash = await walletClient.writeContract({
         address: vaultAddress,
         abi: treasuryVaultAbi,
         functionName: 'realizeYield',
+        chain: walletClient.chain,
       });
       await publicClient.waitForTransactionReceipt({ hash: realizeHash });
     } catch (e) {

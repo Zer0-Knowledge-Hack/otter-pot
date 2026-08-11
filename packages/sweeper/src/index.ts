@@ -1,57 +1,53 @@
-import { createPublicClient, createWalletClient, http } from 'viem';
-import { arbitrum, arbitrumSepolia } from 'viem/chains';
-import { privateKeyToAccount } from 'viem/accounts';
-import { Env, validateEnv } from './config';
-import { executeSweep } from './sweep';
+import { Env } from './config';
+import { runSweep, logSweepResult, sweepResultToJson } from './runner';
+import { authorizeManualTrigger } from './auth';
+
+async function handleManualSweep(env: Env): Promise<Response> {
+  try {
+    const result = await runSweep(env);
+    logSweepResult(result);
+    return new Response(JSON.stringify(sweepResultToJson(result)), {
+      status: 200,
+      headers: { 'content-type': 'application/json' },
+    });
+  } catch (e: any) {
+    console.error(`[Sweeper] Error during manual sweep:`, e?.stack || e?.message || e);
+    return new Response(
+      JSON.stringify({ error: (e as Error).message || String(e) }),
+      { status: 500, headers: { 'content-type': 'application/json' } }
+    );
+  }
+}
 
 export default {
   async scheduled(event: ScheduledEvent, env: Env, ctx: ExecutionContext): Promise<void> {
     console.log(`[Sweeper] Cron triggered at ${new Date(event.scheduledTime).toISOString()}`);
-    
+
     try {
-      validateEnv(env);
-
-      // Ensure private key is properly formatted
-      const pkString = env.ADMIN_PRIVATE_KEY.startsWith('0x') 
-        ? env.ADMIN_PRIVATE_KEY 
-        : `0x${env.ADMIN_PRIVATE_KEY}`;
-      
-      const account = privateKeyToAccount(pkString as `0x${string}`);
-
-      const chainId = parseInt(env.CHAIN_ID, 10);
-      const chain = chainId === 421614 ? arbitrumSepolia : arbitrum;
-
-      const publicClient = createPublicClient({
-        chain,
-        transport: http(env.ARBITRUM_RPC_URL)
-      });
-
-      const walletClient = createWalletClient({
-        account,
-        chain,
-        transport: http(env.ARBITRUM_RPC_URL)
-      });
-
-      const result = await executeSweep(env, publicClient as any, walletClient as any);
-      
-      console.log(`[Sweeper] Action: ${result.action}`);
-      if (result.idleBalance !== undefined) {
-        // USDC has 6 decimals, format it nicely for the logs
-        const formattedBalance = (Number(result.idleBalance) / 1e6).toFixed(2);
-        console.log(`[Sweeper] Idle Balance: ${formattedBalance} USDC`);
-      }
-      if (result.deployTxHash) {
-        console.log(`[Sweeper] Deploy Tx: ${result.deployTxHash}`);
-      }
-      if (result.realizeYieldTxHash) {
-        console.log(`[Sweeper] Realize Yield Tx: ${result.realizeYieldTxHash}`);
-      }
-      if (result.error) {
-        console.error(`[Sweeper] Error: ${result.error}`);
-      }
-
+      const result = await runSweep(env);
+      logSweepResult(result);
     } catch (e: any) {
       console.error(`[Sweeper] Fatal error during scheduled execution:`, e.message || e);
     }
-  }
+  },
+
+  async fetch(request: Request, env: Env): Promise<Response> {
+    const url = new URL(request.url);
+
+    if (url.pathname === '/__health' && request.method === 'GET') {
+      return new Response('ok', { status: 200 });
+    }
+
+    if (url.pathname === '/sweep') {
+      if (request.method !== 'POST') {
+        return new Response('Method not allowed', { status: 405 });
+      }
+      if (!authorizeManualTrigger(request, env)) {
+        return new Response('Unauthorized', { status: 401 });
+      }
+      return handleManualSweep(env);
+    }
+
+    return new Response('Not found', { status: 404 });
+  },
 };

@@ -9,7 +9,12 @@ export interface Env {
   // Secrets
   ADMIN_PRIVATE_KEY: string;
   ARBITRUM_RPC_URL: string;
+
+  // Optional — protege el trigger manual vía HTTP (fetch handler)
+  MANUAL_TRIGGER_TOKEN?: string;
 }
+
+const HEX_ADDRESS_RE = /^0x[0-9a-fA-F]{40}$/;
 
 export function validateEnv(env: Env) {
   const required = [
@@ -27,15 +32,27 @@ export function validateEnv(env: Env) {
     }
   }
 
-  if (!env.VAULT_ADDRESS.startsWith('0x') || env.VAULT_ADDRESS.length !== 42) {
+  if (!HEX_ADDRESS_RE.test(env.VAULT_ADDRESS)) {
     throw new Error('VAULT_ADDRESS must be a valid hex address');
   }
 
-  if (!env.USDC_ADDRESS.startsWith('0x') || env.USDC_ADDRESS.length !== 42) {
+  if (!HEX_ADDRESS_RE.test(env.USDC_ADDRESS)) {
     throw new Error('USDC_ADDRESS must be a valid hex address');
   }
 
-  if (!env.ADMIN_PRIVATE_KEY.startsWith('0x') && env.ADMIN_PRIVATE_KEY.length !== 64) {
-      // If it doesn't start with 0x, we prepend it later in index.ts, but let's just make sure it's present.
+  if (!/^\d+$/.test(env.CHAIN_ID)) {
+    throw new Error('CHAIN_ID must be a numeric chain id');
+  }
+
+  if (!/^\d+(\.\d+)?$/.test(env.SWEEP_THRESHOLD_USDC)) {
+    throw new Error('SWEEP_THRESHOLD_USDC must be a numeric value in USDC');
+  }
+
+  const pk = env.ADMIN_PRIVATE_KEY.startsWith('0x')
+    ? env.ADMIN_PRIVATE_KEY.slice(2)
+    : env.ADMIN_PRIVATE_KEY;
+
+  if (!/^[0-9a-fA-F]{64}$/.test(pk)) {
+    throw new Error('ADMIN_PRIVATE_KEY must be a 64-character hex private key');
   }
 }
