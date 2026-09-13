@@ -1,18 +1,15 @@
-import { Inter, Orbitron } from "next/font/google";
+import { Sora } from "next/font/google";
 import "@rainbow-me/rainbowkit/styles.css";
-import { Metadata } from "next";
+import { Metadata, Viewport } from "next";
 import { ThemeProvider } from "~~/components/ThemeProvider";
+import { RegisterSW } from "~~/components/otterpot/RegisterSW";
+import { TelegramScript } from "~~/components/otterpot/TelegramScript";
 import "~~/styles/globals.css";
 
-const inter = Inter({
+const sora = Sora({
   subsets: ["latin"],
-  variable: "--font-inter",
-});
-
-const orbitron = Orbitron({
-  subsets: ["latin"],
-  variable: "--font-orbitron",
-  weight: ["400", "700", "900"],
+  variable: "--font-sora",
+  weight: ["400", "500", "600", "700"],
 });
 
 const baseUrl = process.env.VERCEL_URL
@@ -32,17 +29,20 @@ export const metadata: Metadata = {
     template: titleTemplate,
   },
   description,
+  applicationName: "OtterPot",
+  manifest: "/manifest.webmanifest",
+  appleWebApp: {
+    capable: true,
+    statusBarStyle: "black-translucent",
+    title: "OtterPot",
+  },
   openGraph: {
     title: {
       default: title,
       template: titleTemplate,
     },
     description,
-    images: [
-      {
-        url: imageUrl,
-      },
-    ],
+    images: [{ url: imageUrl }],
   },
   twitter: {
     card: "summary_large_image",
@@ -58,6 +58,14 @@ export const metadata: Metadata = {
   },
 };
 
+export const viewport: Viewport = {
+  themeColor: "#111D43",
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  viewportFit: "cover",
+};
+
 /**
  * Layout raíz — deliberadamente sin los providers del scaffold.
  *
@@ -70,14 +78,16 @@ export const metadata: Metadata = {
  * Los providers se movieron a las rutas heredadas que sí los usan: `/debug` y
  * `/blockexplorer`, cada una con su propio layout.
  */
-const RootLayout = ({ children }: { children: React.ReactNode }) => {
+export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
     <html suppressHydrationWarning>
-      <body className={`${inter.variable} ${orbitron.variable} font-sans`} suppressHydrationWarning>
-        <ThemeProvider>{children}</ThemeProvider>
+      <body className={`${sora.variable} font-sans`} suppressHydrationWarning>
+        <ThemeProvider>
+          {children}
+          <RegisterSW />
+          <TelegramScript />
+        </ThemeProvider>
       </body>
     </html>
   );
-};
-
-export default RootLayout;
+}

@@ -24,31 +24,43 @@
  * depende de la otra.
  */
 
-import { createWalletClient, getAddress, http, isAddress, parseAbi } from "viem";
+import { createWalletClient, getAddress, http, isAddress, parseAbiItem } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { arbitrumSepolia } from "viem/chains";
-import type { Address, Chain, Hex } from "viem";
+import type { Abi, Address, Chain, Hex } from "viem";
 import { getChallengeStatus } from "./confirmations";
 import type { ChallengeId, ConfirmationStore } from "./confirmations";
+import challengePoolFunctionsAbi from "../contracts/ChallengePool.abi.json";
 
 /**
- * ABI verificado firma por firma contra `packages/arc/abi/ChallengePool.json` —el ABI
- * exportado del contrato Solidity desplegado en Arc— y su fuente
- * `packages/arc/src/ChallengePool.sol`. El puerto desde Rust/Stylus no cambió ningún
- * nombre ni tipo, así que estas firmas valen para las dos cadenas. No cambiar nada acá
- * sin re-verificar contra ese ABI exportado.
+ * ABI de `ChallengePool` — desde 2026-08-07 se importa el archivo real que exporta el
+ * pipeline de deploy (`packages/worker/contracts/ChallengePool.abi.json`, generado por
+ * `packages/stylus/scripts/export_abi.ts`) en vez de mantener una copia escrita a mano.
+ * Reduce el riesgo de que se desincronice con el contrato real.
+ *
+ * Ese archivo solo trae funciones, no eventos — `ChallengeResolved` se agrega acá.
+ *
+ * ⚠️ Ese JSON es el ABI exportado del contrato **Rust/Stylus**. Desde el puerto a Arc
+ * hay un segundo contrato en juego (`packages/arc/src/ChallengePool.sol`), y su ABI
+ * canónico es `packages/arc/abi/ChallengePool.json`. Se verificaron firma por firma
+ * las dos: nombres, tipos de entrada y salida y banderas `indexed` coinciden sin un
+ * solo desvío, así que este import sirve para las dos cadenas. Si el contrato Solidity
+ * llegara a divergir, hay que repuntar este import al ABI de `packages/arc`.
  *
  * ⚠️ Los scripts TS del repo (`integration-test-usdc.ts:52`) declaran
- * `confirmResult(...) returns (bool)` — es incorrecto, la función no retorna nada.
- * No copiar esa firma. El depósito es en USDC (ERC-20): ninguna tx del worker hacia
- * este contrato lleva `value`, ni siquiera en Arc, donde USDC es además el gas nativo.
+ * `confirmResult(...) returns (bool)` — es incorrecto, la función no retorna nada. El
+ * JSON importado ya lo tiene bien (`outputs: []`), no hay que corregir nada acá.
+ * El depósito es en USDC (ERC-20): ninguna tx del worker hacia este contrato lleva
+ * `value`, ni siquiera en Arc, donde USDC es además el gas nativo.
  */
-export const CHALLENGE_POOL_ABI = parseAbi([
-  "function confirmResult(uint256 challengeId, address winner)",
-  "function isOperator(address operator) view returns (bool)",
-  "function challengeStatus(uint256 challengeId) view returns (uint8)",
+const CHALLENGE_RESOLVED_EVENT = parseAbiItem(
   "event ChallengeResolved(uint256 indexed challengeId, address indexed winner, uint256 totalPayout, uint256 commission)",
-] as const);
+);
+
+export const CHALLENGE_POOL_ABI = [
+  ...(challengePoolFunctionsAbi as Abi),
+  CHALLENGE_RESOLVED_EVENT,
+] as const satisfies Abi;
 
 /**
  * Selector esperado de `confirmResult(uint256,address)`. Re-derivado contra el ABI

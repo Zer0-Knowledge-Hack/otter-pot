@@ -19,13 +19,20 @@ type HeaderMenuLink = {
 
 export const menuLinks: HeaderMenuLink[] = [
   {
-    label: "Home",
+    label: "Inicio",
     href: "/",
+  },
+  {
+    label: "App",
+    href: "/app",
+  },
+  {
+    label: "Login",
+    href: "/login",
   },
   {
     label: "Debug Contracts",
     href: "/debug",
-    // icon: <BugAntIcon className="h-4 w-4" />,
   },
 ];
 
@@ -142,7 +149,7 @@ export const Header = () => {
                 textTransform: "uppercase",
               }}
             >
-              SCAFFOLD STYLUS
+              OTTERPOT
             </span>
             <span
               style={{
@@ -153,7 +160,7 @@ export const Header = () => {
                 lineHeight: "20px",
               }}
             >
-              Arbitrum dev stack
+              Arbitrum · ETH Lima 2026
             </span>
           </div>
         </Link>
