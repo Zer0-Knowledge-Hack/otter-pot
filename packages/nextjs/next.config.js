@@ -1,19 +1,59 @@
 // @ts-check
+const path = require("path");
+
+/**
+ * Turbopack (Windows) rejects absolute paths in resolveAlias:
+ * "windows imports are not implemented yet".
+ * Relative aliases are from turbopack.root (monorepo root).
+ */
+const emptyModuleTurbo = "./packages/nextjs/utils/empty-module.js";
+const emptyModuleWebpack = path.join(__dirname, "utils/empty-module.js");
+
+const x402Packages = [
+  "@x402/core/client",
+  "@x402/evm",
+  "@x402/evm/exact/client",
+  "@x402/evm/upto/client",
+  "@x402/svm/exact/client",
+];
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
   reactStrictMode: true,
-  // Sitio estatico: no hay servidor que mantener y se hostea en cualquier CDN.
-  // Las paginas de OtterPot son todas cliente, asi que no pierden nada.
+
+  agentRules: false,
+
+  // Generar sitio estático para Firebase Hosting
   output: "export",
-  images: { unoptimized: true },
-  // Next bloquea por defecto los recursos de desarrollo pedidos desde otro dominio.
-  // Al servir la app por un túnel (cloudflared), el HTML llega bien pero el cliente
-  // nunca hidrata: los botones quedan muertos y los efectos no corren. Se declaran
-  // acá los dominios de túnel usados en desarrollo. No afecta a producción.
-  allowedDevOrigins: ["*.trycloudflare.com"],
+
+  images: {
+    unoptimized: true,
+  },
+  trailingSlash: true,
+  trailingSlash: true,
   typescript: {
-    ignoreBuildErrors: process.env.NEXT_PUBLIC_IGNORE_BUILD_ERROR === "true",
+    ignoreBuildErrors:
+      process.env.NEXT_PUBLIC_IGNORE_BUILD_ERROR === "true",
+  },
+
+  allowedDevOrigins: [
+    "*.trycloudflare.com",
+    "192.168.100.31",
+    "127.0.0.1",
+    "localhost",
+  ],
+
+  turbopack: {
+    root: path.join(__dirname, "../.."),
+    resolveAlias: Object.fromEntries(x402Packages.map(p => [p, emptyModuleTurbo])),
+  },
+
+  webpack: config => {
+    config.resolve.alias = {
+      ...config.resolve.alias,
+      ...Object.fromEntries(x402Packages.map(p => [p, emptyModuleWebpack])),
+    };
+    return config;
   },
 };
 

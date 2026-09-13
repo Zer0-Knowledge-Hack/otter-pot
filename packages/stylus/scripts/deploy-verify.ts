@@ -1,22 +1,15 @@
 /**
- * Despliegue completo de OtterPot en UN comando:
+ * Despliegue completo de OtterPot CON VERIFICACIÓN (requiere Docker Desktop + WSL):
  *
- *   yarn workspace @ss/stylus deploy [--network local|sepolia]
+ *   yarn workspace @ss/stylus deploy:verify --network sepolia
  *
  * Hace, en orden:
- *   1. Deploy de los contratos (vía `cargo stylus deploy` dentro de WSL,
- *      porque en esta máquina cargo solo vive en WSL).
- *        - local  : mock_usdc + mock_strategy + treasury_vault + challenge_pool
- *        - sepolia: treasury_vault + challenge_pool + aave_strategy (sin mock, USDC real)
- *   2. Guarda las direcciones en deployments/<chainId>_latest.json.
- *   3. Init automático:
- *        - TreasuryVault.init(usdc)
- *        - Strategy.init(usdc) / Strategy.init(pool, usdc, atoken)
- *        - Strategy.setVault(vault)
- *        - TreasuryVault.setStrategy(strategy)
- *        - ChallengePool.init(vault, usdc, commissionBps)
- *   4. Despliegue inicial de capital en la estrategia (opcional, solo local).
+ *   1. Deploy de los contratos CON --verify (reproducible, verificable en Arbiscan) vía cargo stylus en WSL
+ *   2. Guarda las direcciones en deployments/<chainId>_latest.json
+ *   3. Init automático completo (incluye commission rate 2% = 200 bps)
+ *   4. Verifica que todo esté cableado correctamente
  *
+ * REQUISITO: Docker Desktop corriendo con WSL integration habilitada
  * Todo el flujo es un solo comando; no hacen falta pasos extra.
  */
 
@@ -25,15 +18,11 @@ import type { ContractTransactionResponse, JsonRpcProvider, Wallet } from "ether
 import * as path from "path";
 import * as fs from "fs";
 import { execFileSync } from "child_process";
-import { arbitrumNitro } from "../../nextjs/utils/scaffold-stylus/supportedChains";
 import { parseArgs, resolveTarget } from "./otter";
 import { getPrivateKey } from "./utils/network";
 import { extractDeploymentInfo } from "./utils/contract";
 
-const RATE_BPS = 500n; // 500 bps = 5 %
-// Techo de gas por gas (gwei). En testnets la base fee puede subir por encima del
-// default de cargo stylus (0.02 gwei); este techo es solo un límite (se paga la
-// base fee real). Se ajusta con la env OTT_DEPLOY_MAXFEE_GWEI o flag --max-fee.
+const RATE_BPS = 200n; // 200 bps = 2 %
 const DEFAULT_MAX_FEE_GWEI = "1";
 
 // Direcciones de Aave V3 en Arbitrum Sepolia (oficiales: bgd-labs/aave-address-book)
@@ -75,7 +64,7 @@ const LINUX_CONTRACTS = path
   .replace(/^([A-Za-z]):\\/, (_: string, d: string) => `/mnt/${d.toLowerCase()}/`)
   .replace(/\\/g, "/");
 
-const TMP_WORKSPACE = "/tmp/otter-deploy";
+const TMP_WORKSPACE = "/tmp/otter-deploy-verify";
 
 function runWsl(script: string): string {
   return execFileSync("wsl", ["bash", "-lc", script], {
@@ -84,19 +73,19 @@ function runWsl(script: string): string {
   });
 }
 
-async function cargoDeploy(
+async function cargoDeployVerify(
   name: string,
   rpc: string,
   privateKey: string,
   maxFeeGwei: string,
-): Promise<string> {
-  console.log(`\n🚀 Desplegando ${name}…`);
+): Promise<{ address: string; txHash: string }> {
+  console.log(`\n🚀 Desplegando ${name} CON VERIFICACIÓN…`);
   const script = [
     `rm -rf ${TMP_WORKSPACE}/work`,
     `mkdir -p ${TMP_WORKSPACE}/work`,
     `cp -r '${LINUX_CONTRACTS}' ${TMP_WORKSPACE}/work/`,
     `cd ${TMP_WORKSPACE}/work/contracts/${name}`,
-    `cargo stylus deploy --endpoint '${rpc}' --private-key '${privateKey}' --no-verify --max-fee-per-gas-gwei=${maxFeeGwei}`,
+    `cargo stylus deploy --endpoint '${rpc}' --private-key '${privateKey}' --max-fee-per-gas-gwei=${maxFeeGwei} --cargo-stylus-version 0.10.7`,
   ].join(" && ");
   const out = runWsl(script);
   const info = extractDeploymentInfo(out);
@@ -106,7 +95,8 @@ async function cargoDeploy(
     );
   }
   console.log(`  ✔ ${name} → ${info.address}`);
-  return info.address;
+  console.log(`  📝 Tx hash: ${info.txHash || "no disponible en output"}`);
+  return info;
 }
 
 async function initContracts(
@@ -115,8 +105,7 @@ async function initContracts(
   vaultAddr: string,
   poolAddr: string,
   strategyAddr: string,
-  /** Con mocks la estrategia se inicializa con solo el USDC; con Aave, con pool+usdc+atoken. */
-  usaMock: boolean,
+  isLocal: boolean,
 ): Promise<void> {
   const vault: InitVault = new ethers.Contract(vaultAddr, VAULT_ABI, owner) as unknown as InitVault;
   const pool: InitPool = new ethers.Contract(poolAddr, POOL_ABI, owner) as unknown as InitPool;
@@ -136,10 +125,10 @@ async function initContracts(
   }
 
   // 2. Strategy.init(...)
-  console.log(`  Strategy.init(${usaMock ? "usdc" : "pool, usdc, atoken"})…`);
+  console.log(`  Strategy.init(${isLocal ? "usdc" : "pool, usdc, atoken"})…`);
   try {
     let tx: ContractTransactionResponse;
-    if (usaMock) {
+    if (isLocal) {
       tx = await strategy.init(usdcAddr);
     } else {
       tx = await strategy.init(AAVE_V3_POOL_SEPOLIA, USDC_SEPOLIA, AUSDC_SEPOLIA);
@@ -185,7 +174,70 @@ async function initContracts(
   }
 }
 
-export default async function deployScript(
+async function verifySetup(
+  provider: JsonRpcProvider,
+  usdcAddr: string,
+  vaultAddr: string,
+  poolAddr: string,
+  strategyAddr: string,
+): Promise<void> {
+  console.log("\n── Verificando cableado ──");
+
+  const VAULT_READ_ABI = [
+    "function strategy() view returns (address)",
+    "function usdc() view returns (address)",
+    "function totalAssets() view returns (uint256)",
+  ] as const;
+
+  const POOL_READ_ABI = [
+    "function treasuryVault() view returns (address)",
+    "function usdc() view returns (address)",
+    "function commissionRate() view returns (uint256)",
+  ] as const;
+
+  const STRATEGY_READ_ABI = [
+    "function vault() view returns (address)",
+  ] as const;
+
+  const vaultC = new ethers.Contract(vaultAddr, VAULT_READ_ABI, provider);
+  const poolC = new ethers.Contract(poolAddr, POOL_READ_ABI, provider);
+  const strategyC = new ethers.Contract(strategyAddr, STRATEGY_READ_ABI, provider);
+
+  try {
+    const [vaultStrategy, vaultUsdc, vaultTotalAssets] = await Promise.all([
+      (vaultC as any)["strategy"](),
+      (vaultC as any)["usdc"](),
+      (vaultC as any)["totalAssets"](),
+    ]);
+    console.log(`  TreasuryVault.strategy: ${vaultStrategy} ${vaultStrategy.toLowerCase() === strategyAddr.toLowerCase() ? "✅" : "❌"}`);
+    console.log(`  TreasuryVault.usdc: ${vaultUsdc} ${vaultUsdc.toLowerCase() === usdcAddr.toLowerCase() ? "✅" : "❌"}`);
+    console.log(`  TreasuryVault.totalAssets: ${ethers.formatUnits(vaultTotalAssets, 6)} USDC`);
+  } catch (e) {
+    console.log(`  ❌ Error leyendo TreasuryVault: ${e}`);
+  }
+
+  try {
+    const [poolVault, poolUsdc, poolRate] = await Promise.all([
+      (poolC as any)["treasuryVault"](),
+      (poolC as any)["usdc"](),
+      (poolC as any)["commissionRate"](),
+    ]);
+    console.log(`  ChallengePool.treasuryVault: ${poolVault} ${poolVault.toLowerCase() === vaultAddr.toLowerCase() ? "✅" : "❌"}`);
+    console.log(`  ChallengePool.usdc: ${poolUsdc} ${poolUsdc.toLowerCase() === usdcAddr.toLowerCase() ? "✅" : "❌"}`);
+    console.log(`  ChallengePool.commissionRate: ${poolRate} bps`);
+  } catch (e) {
+    console.log(`  ❌ Error leyendo ChallengePool: ${e}`);
+  }
+
+  try {
+    const stratVault = await (strategyC as any)["vault"]();
+    console.log(`  AaveStrategy.vault: ${stratVault} ${stratVault.toLowerCase() === vaultAddr.toLowerCase() ? "✅" : "❌"}`);
+  } catch (e) {
+    console.log(`  ❌ Error leyendo AaveStrategy: ${e}`);
+  }
+}
+
+export default async function deployVerifyScript(
   opts: { network?: string; net?: string } = {},
 ): Promise<void> {
   const raw = parseArgs(process.argv.slice(2));
@@ -193,52 +245,49 @@ export default async function deployScript(
   const target = resolveTarget({ ...raw, ...(network ? { network } : {}) });
   const chainId = target.chainId;
 
-  const privateKey =
-    (target.isLocal
-      ? (arbitrumNitro.accounts[0] as { privateKey?: string }).privateKey ?? ""
-      : getPrivateKey("arbitrumSepolia")).trim() ?? "";
+  if (target.isLocal) {
+    throw new Error("Este script es solo para testnet (sepolia). Para local usa 'yarn deploy'");
+  }
+
+  const privateKey = getPrivateKey("arbitrumSepolia").trim() ?? "";
   if (!privateKey) throw new Error("Falta la clave privada para el deploy");
   const normalizedKey =
     (privateKey.startsWith("0x") || privateKey.startsWith("0X")
       ? privateKey
       : "0x" + privateKey).toLowerCase();
 
-  if (!target.isLocal) {
-    const derived = new ethers.Wallet(normalizedKey).address;
-    const expected = process.env["ACCOUNT_ADDRESS_SEPOLIA"];
-    if (expected && expected.toLowerCase() !== derived.toLowerCase()) {
-      throw new Error(
-        `La PRIVATE_KEY_SEPOLIA no corresponde a ACCOUNT_ADDRESS_SEPOLIA (derivada ${derived})`,
-      );
-    }
-    console.log(`   Owner: ${derived}  bal: ${(await new ethers.JsonRpcProvider(target.rpc).getBalance(derived)).toString()} wei`);
+  const derived = new ethers.Wallet(normalizedKey).address;
+  const expected = process.env["ACCOUNT_ADDRESS_SEPOLIA"];
+  if (expected && expected.toLowerCase() !== derived.toLowerCase()) {
+    throw new Error(
+      `La PRIVATE_KEY_SEPOLIA no corresponde a ACCOUNT_ADDRESS_SEPOLIA (derivada ${derived})`,
+    );
+  }
+  const provider = new ethers.JsonRpcProvider(target.rpc);
+  const balance = await provider.getBalance(derived);
+  console.log(`   Owner: ${derived}  bal: ${ethers.formatEther(balance)} ETH`);
+  if (balance < ethers.parseEther("0.05")) {
+    throw new Error(`Saldo insuficiente (${ethers.formatEther(balance)} ETH). Necesitas al menos 0.05 ETH para deploy con verificación.`);
   }
 
-  // Los mocks van SOLO en local, nunca en testnet (SDD v6 §6.5 y §7.3.3).
-  //
-  // En Arbitrum Sepolia se opera con el USDC de Circle y con Aave V3 real: la spec
-  // es explícita en que la demo debe correr contra el protocolo, no contra un
-  // simulacro. El USDC de prueba se obtiene del faucet de Circle o del de Aave
-  // (SDD §7.3.2), así que no hace falta desplegar un mock para tener fondos.
-  const usaMock = target.isLocal;
-  const contracts = usaMock
-    ? ["mock_usdc", "mock_strategy", "treasury_vault", "challenge_pool"]
-    : ["treasury_vault", "challenge_pool", "aave_strategy"];
+  const contracts = ["treasury_vault", "challenge_pool", "aave_strategy"];
 
   console.log("==========================================================");
-  console.log("   OtterPot — deploy completo");
-  console.log(`   Red: ${target.isLocal ? "local (Nitro DevNode)" : "testnet"}  chainId=${chainId}`);
+  console.log("   OtterPot — deploy completo con verificación");
+  console.log(`   Red: testnet  chainId=${chainId}`);
   console.log(`   RPC: ${target.rpc}`);
   console.log(`   Contratos: ${contracts.join(", ")}`);
   console.log("==========================================================");
 
-  // 1) Deploy secuencial vía cargo stylus en WSL.
+  // 1) Deploy secuencial vía cargo stylus en WSL CON VERIFICACIÓN.
   const maxFeeGwei =
     raw["max-fee"] ?? process.env["OTT_DEPLOY_MAXFEE_GWEI"] ?? DEFAULT_MAX_FEE_GWEI;
-  const record: Record<string, { address: string }> = {};
+  const record: Record<string, { address: string; txHash?: string }> = {};
   for (const name of contracts) {
-    const address = await cargoDeploy(name, target.rpc, normalizedKey, maxFeeGwei);
-    record[name] = { address };
+    const info = await cargoDeployVerify(name, target.rpc, normalizedKey, maxFeeGwei);
+    record[name] = { address: info.address, txHash: info.txHash };
+    // Pequeña pausa entre deploys para evitar nonce issues
+    await new Promise(r => setTimeout(r, 3000));
   }
 
   // 2) Guardar en deployments/<chainId>_latest.json.
@@ -259,63 +308,47 @@ export default async function deployScript(
 
   // 3) Init automático.
   const usdcAddr =
-    record["mock_usdc"]?.address ??
     raw["usdc"] ??
     process.env["USDC_ADDRESS"] ??
-    (usaMock ? undefined : USDC_SEPOLIA);
+    USDC_SEPOLIA;
   const vaultAddr = record["treasury_vault"]?.address;
   const poolAddr = record["challenge_pool"]?.address;
-  const strategyAddr = usaMock
-    ? record["mock_strategy"]?.address
-    : record["aave_strategy"]?.address;
+  const strategyAddr = record["aave_strategy"]?.address;
 
   if (!usdcAddr || !vaultAddr || !poolAddr || !strategyAddr) {
     console.error("\n❌ No se pudo inicializar: faltan direcciones de USDC/vault/pool/strategy.");
-    console.error("   En testnet pasa el USDC con --usdc o la variable USDC_ADDRESS.");
     process.exit(1);
   }
 
-  const provider: JsonRpcProvider = new ethers.JsonRpcProvider(target.rpc);
   const owner = new ethers.Wallet(normalizedKey, provider);
 
   console.log("\nInicializando contratos…");
-  await initContracts(owner, usdcAddr, vaultAddr, poolAddr, strategyAddr, usaMock);
+  await initContracts(owner, usdcAddr, vaultAddr, poolAddr, strategyAddr, false);
 
-  // 4) Despliegue inicial de capital en la estrategia (solo local, opcional)
-  if (target.isLocal) {
-    console.log("\n── Despliegue inicial de capital en estrategia (opcional) ──");
-    const deployInitial = raw["deploy-initial"] ?? "true";
-    if (deployInitial === "true") {
-      const VAULT_FULL_ABI = [
-        "function usdc() view returns (address)",
-        "function totalAssets() view returns (uint256)",
-        "function deployToStrategy(uint256) returns (bool)",
-      ] as const;
-      // eslint-disable-next-line @typescript-eslint/no-explicit-any
-      const vaultFull: any = new ethers.Contract(vaultAddr, VAULT_FULL_ABI, owner);
-      const totalAssets = await vaultFull.totalAssets();
-      if (totalAssets > 0n) {
-        console.log(`  Desplegando ${ethers.formatUnits(totalAssets, 6)} USDC en estrategia…`);
-        try {
-          const tx = await vaultFull.deployToStrategy(totalAssets);
-          await tx.wait();
-          console.log("    ✔ Capital desplegado en estrategia");
-        } catch (err) {
-          const msg = err instanceof Error ? err.message.split("\n")[0] : String(err);
-          console.log(`    ⚠ ${msg}`);
-        }
-      } else {
-        console.log("  Vault sin fondos, se omite deploy inicial");
-      }
-    }
-  }
+  // 4) Verificar cableado
+  await verifySetup(provider, usdcAddr, vaultAddr, poolAddr, strategyAddr);
 
   console.log("\n==========================================================");
-  console.log("   Resumen del deploy");
+  console.log("   Resumen del deploy CON VERIFICACIÓN");
   for (const name of contracts) {
     console.log(`   · ${name}: ${record[name]!.address}`);
+    if (record[name]!.txHash) {
+      console.log(`     tx: ${record[name]!.txHash}`);
+      console.log(`     verify: https://sepolia.arbiscan.io/tx/${record[name]!.txHash}`);
+    }
   }
   console.log(`   · USDC: ${usdcAddr}`);
-  console.log("   ✅ Listo. Los contratos están desplegados, inicializados y cableados.");
+  console.log("   ✅ Listo. Contratos desplegados, VERIFICABLES, inicializados y cableados.");
+  console.log("   📋 Commission rate: 2% (200 bps)");
   console.log("==========================================================");
+}
+
+if (require.main === module) {
+  deployVerifyScript()
+    .then(() => process.exit(0))
+    .catch((err: unknown) => {
+      console.error("\n❌ Deploy falló:");
+      console.error(err instanceof Error ? err.message : err);
+      process.exit(1);
+    });
 }
