@@ -1,6 +1,6 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { InMemoryConfirmationStore } from "../src/confirmations";
-import { handleConfirmar, handleDepositar, handleHistorial } from "../src/telegram/retos";
+import { handleConfirmar, handleDepositar, handleHistorial, handleReembolso } from "../src/telegram/retos";
 import type { RetoRegistrado, RetosDeps } from "../src/telegram/retos";
 import { InMemoryStore, keys, writeJson } from "../src/telegram/store";
 import { saveConfig, DEFAULT_CONFIG } from "../src/telegram/config";
@@ -200,5 +200,72 @@ describe("/depositar", () => {
     const url = markup.inline_keyboard[0]?.[0]?.url ?? "";
     // La barra final de la base no debe duplicarse.
     expect(url).toBe("https://app.otterpot.dev/depositar?reto=0&monto=25");
+  });
+});
+
+// ─── Custom errors del contrato, tal como los ve el usuario ──────────────────
+
+/** Error con la forma que arma viem cuando el contrato revierte con un custom error. */
+function revertDelContrato(errorName: string): Error {
+  const interno = new Error(`The contract function reverted.\n\nError: ${errorName}()`) as Error & {
+    name: string;
+    data: { errorName: string };
+  };
+  interno.name = "ContractFunctionRevertedError";
+  interno.data = { errorName };
+
+  const externo = new Error("The contract function reverted.") as Error & { cause?: unknown };
+  externo.name = "ContractFunctionExecutionError";
+  externo.cause = interno;
+  return externo;
+}
+
+describe("custom errors del ChallengePool en los mensajes del bot", () => {
+  let transport: TransporteFalso;
+  let store: InMemoryStore;
+
+  beforeEach(async () => {
+    transport = new TransporteFalso();
+    store = new InMemoryStore();
+    await writeJson(store, keys.challenge(CHAT, "0"), RETO);
+  });
+
+  it("/reembolso antes del plazo explica el plazo en vez de volcar el error de viem", async () => {
+    const chain = new CadenaFalsa();
+    chain.reembolsar = async (): Promise<Hex> => {
+      throw revertDelContrato("DeadlineNotReached");
+    };
+    const deps: RetosDeps = { transport, store, chain, confirmations: new InMemoryConfirmationStore() };
+
+    await handleReembolso(deps, CHAT, "0");
+
+    expect(transport.ultimo).toContain("plazo");
+    expect(transport.ultimo).not.toContain("DeadlineNotReached");
+    expect(transport.ultimo).not.toContain("contract function");
+  });
+
+  it("un reto con una wallet repetida explica el duplicado", async () => {
+    const chain = new CadenaFalsa();
+    chain.reembolsar = async (): Promise<Hex> => {
+      throw revertDelContrato("DuplicateParticipant");
+    };
+    const deps: RetosDeps = { transport, store, chain, confirmations: new InMemoryConfirmationStore() };
+
+    await handleReembolso(deps, CHAT, "0");
+
+    expect(transport.ultimo).toMatch(/repetid/i);
+    expect(transport.ultimo).not.toContain("DuplicateParticipant");
+  });
+
+  it("un error de red se muestra tal cual, sin traducción inventada", async () => {
+    const chain = new CadenaFalsa();
+    chain.reembolsar = async (): Promise<Hex> => {
+      throw new Error("HTTP request failed: 503");
+    };
+    const deps: RetosDeps = { transport, store, chain, confirmations: new InMemoryConfirmationStore() };
+
+    await handleReembolso(deps, CHAT, "0");
+
+    expect(transport.ultimo).toContain("HTTP request failed: 503");
   });
 });
