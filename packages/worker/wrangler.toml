@@ -9,8 +9,21 @@ compatibility_flags = ["nodejs_compat"]
 binding = "BOT_KV"
 id = "4d534dc1410c4776b80a5f779d749b5a"
 
+# Configuración de la cadena. Arc testnet (Circle) es el destino actual: los valores
+# salen de packages/arc/deployments/arc-testnet.json, que es el registro canónico.
+# Nada de esto es secreto — son direcciones públicas y un RPC público.
+#
+# Para volver a Arbitrum Sepolia o al Nitro local, cambiar las cuatro juntas:
+# CHAIN_ID y CHAIN_RPC_URL tienen que ser de la misma red o la firma se rechaza
+# con «invalid chain id for signer», y el pool y el token viven en una sola cadena.
 [vars]
 ENVIRONMENT = "development"
+CHAIN_ID = "5042002"
+CHAIN_RPC_URL = "https://rpc.testnet.arc.io"
+CHALLENGE_POOL_ADDRESS = "0x3953ecD3f1797FD18b22a151fEF20C3f5Ae0aD0B"
+# USDC es un contrato de sistema presente en el génesis de Arc. Su interfaz ERC-20
+# —la que usa el pozo— tiene 6 decimales; el worker igual los lee del token.
+USDC_ADDRESS = "0x3600000000000000000000000000000000000000"
 
 # Secretos (NUNCA en este archivo, ver AGENTS.md):
 #   wrangler secret put TELEGRAM_BOT_TOKEN

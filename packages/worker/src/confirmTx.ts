@@ -15,13 +15,13 @@
  *   2. `sendConfirmResult` / `createOperatorWriter` — envío real firmado con la cuenta
  *      operadora. Toma los parámetros YA validados por la capa 1 y los manda a la cadena.
  *
- * ⚠️ Estado real (2026-08-07): la capa 2 NO está probada end-to-end contra una red.
- * No hay `ChallengePool` desplegado en ninguna red todavía, no hay clave operadora, y el
- * contrato tiene un bug crítico abierto (`confirm_result` no valida que `winner` sea
- * participante del reto — ver docs/backend-plan.md, Fase 3). Nuestra mitad (nunca enviar
- * un ganador distinto al que calculó el consenso) es correcta y necesaria, pero NO es
- * suficiente sola: el límite de confianza real es el contrato, y hoy está abierto.
- * No usar contra fondos reales hasta que Moises confirme el fix.
+ * Estado: el `ChallengePool` Solidity está desplegado en Arc testnet
+ * (`packages/arc/deployments/arc-testnet.json`) y su ciclo completo —crear, depositar,
+ * confirmar— quedó verificado on-chain ahí. El bug que hacía peligrosa esta capa ya no
+ * existe: `confirmResult` revierte con `WinnerNotParticipant` si el ganador no está
+ * registrado en el reto, así que ahora hay dos guardas independientes —la del worker
+ * (nunca enviar un ganador distinto al del consenso) y la del contrato— y ninguna
+ * depende de la otra.
  */
 
 import { createWalletClient, getAddress, http, isAddress, parseAbi } from "viem";
@@ -32,13 +32,16 @@ import { getChallengeStatus } from "./confirmations";
 import type { ChallengeId, ConfirmationStore } from "./confirmations";
 
 /**
- * ABI confirmado por revisión directa del código Rust del contrato + `IChallengePool.sol`
- * (docs/backend-plan.md, Fase 3). No cambiar nombres ni tipos sin re-verificar contra el Rust.
+ * ABI verificado firma por firma contra `packages/arc/abi/ChallengePool.json` —el ABI
+ * exportado del contrato Solidity desplegado en Arc— y su fuente
+ * `packages/arc/src/ChallengePool.sol`. El puerto desde Rust/Stylus no cambió ningún
+ * nombre ni tipo, así que estas firmas valen para las dos cadenas. No cambiar nada acá
+ * sin re-verificar contra ese ABI exportado.
  *
  * ⚠️ Los scripts TS del repo (`integration-test-usdc.ts:52`) declaran
- * `confirmResult(...) returns (bool)` — es incorrecto, el Rust retorna `()`. No copiar esa firma.
- * El depósito es en USDC (ERC-20), no ETH nativo: ninguna tx del worker hacia este contrato
- * lleva `value`.
+ * `confirmResult(...) returns (bool)` — es incorrecto, la función no retorna nada.
+ * No copiar esa firma. El depósito es en USDC (ERC-20): ninguna tx del worker hacia
+ * este contrato lleva `value`, ni siquiera en Arc, donde USDC es además el gas nativo.
  */
 export const CHALLENGE_POOL_ABI = parseAbi([
   "function confirmResult(uint256 challengeId, address winner)",
@@ -47,7 +50,11 @@ export const CHALLENGE_POOL_ABI = parseAbi([
   "event ChallengeResolved(uint256 indexed challengeId, address indexed winner, uint256 totalPayout, uint256 commission)",
 ] as const);
 
-/** Selector esperado de `confirmResult(uint256,address)` — verificado en el plan y en los tests. */
+/**
+ * Selector esperado de `confirmResult(uint256,address)`. Re-derivado contra el ABI
+ * exportado del contrato Solidity: la firma no cambió en el puerto, así que el selector
+ * sigue siendo el mismo. Los tests lo recalculan con `toFunctionSelector`.
+ */
 export const CONFIRM_RESULT_SELECTOR = "0x9c338d6b";
 
 /** Parámetros exactos de la llamada, ya validados. Solo se construye si TODAS las guardas pasan. */
