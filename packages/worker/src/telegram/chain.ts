@@ -19,6 +19,13 @@ import type { ConfirmResultWriter } from "../confirmTx";
 
 const ERC20_ABI = parseAbi(["function decimals() view returns (uint8)"] as const);
 
+/**
+ * ABI del pool. Verificado firma por firma contra `packages/arc/abi/ChallengePool.json`
+ * —el ABI exportado del contrato Solidity desplegado en Arc— y su fuente
+ * `packages/arc/src/ChallengePool.sol`. El puerto desde Rust/Stylus conservó los
+ * nombres y los tipos, así que estas firmas sirven para las dos cadenas.
+ * No cambiar nada acá sin re-verificar contra ese ABI exportado.
+ */
 export const CHALLENGE_POOL_ABI = parseAbi([
   "function createChallenge(uint256 requiredDeposit, uint256 deadline, address[] participants) returns (uint256)",
   "function challengeStatus(uint256 challengeId) view returns (uint8)",
@@ -28,7 +35,11 @@ export const CHALLENGE_POOL_ABI = parseAbi([
   "event ChallengeCreated(uint256 indexed challengeId, address indexed creator, uint256 requiredDeposit, uint256 deadline)",
 ] as const);
 
-/** Estados del reto, en el mismo orden que `logic.rs`. */
+/**
+ * Estados del reto. Los valores numéricos son los mismos en las dos
+ * implementaciones: `STATE_OPEN/LOCKED/RESOLVED/REFUNDED` = 0/1/2/3 en
+ * `packages/arc/src/ChallengePool.sol`, igual que en `logic.rs`.
+ */
 export const ESTADOS = ["Abierto", "Bloqueado", "Resuelto", "Reembolsado"] as const;
 export type EstadoReto = (typeof ESTADOS)[number];
 
@@ -42,6 +53,29 @@ export const arbitrumNitroLocal: Chain = defineChain({
   name: "Arbitrum Nitro (local)",
   nativeCurrency: { name: "Ether", symbol: "ETH", decimals: 18 },
   rpcUrls: { default: { http: ["http://127.0.0.1:8547"] } },
+});
+
+/**
+ * Arc testnet (Circle). Datos tomados de `packages/arc/deployments/arc-testnet.json`.
+ *
+ * ⚠️ `nativeCurrency.decimals` es 18 y NO es una errata, aunque USDC sea un token de
+ * 6 decimales. En Arc, USDC es también el gas nativo y se expone con una interfaz
+ * doble sobre un único saldo: la interfaz NATIVA (`msg.value`, `address.balance`,
+ * el `value` de una tx) es de 18 decimales, y la ERC-20 (`balanceOf`, `transfer`,
+ * `decimals()`) es de 6. `nativeCurrency` de viem describe la interfaz nativa —que
+ * es la que usa para estimar y mostrar el gas—, así que acá va 18.
+ * Los montos del pozo NO pasan por acá: se escalan con los decimales que devuelve
+ * el propio token (ver `escalarUsdc`), que en Arc son 6.
+ */
+export const arcTestnet: Chain = defineChain({
+  id: 5042002,
+  name: "Arc Testnet",
+  nativeCurrency: { name: "USDC", symbol: "USDC", decimals: 18 },
+  rpcUrls: { default: { http: ["https://rpc.testnet.arc.io"] } },
+  blockExplorers: {
+    default: { name: "Arcscan", url: "https://testnet.arcscan.app" },
+  },
+  testnet: true,
 });
 
 export interface ChainConfig {
@@ -75,10 +109,12 @@ export interface ChainEnv {
  * el devnode y fallaba al apuntar a Sepolia — justo al mover la demo a testnet.
  */
 export function resolverCadena(chainId: number | undefined): Chain {
+  if (chainId === arcTestnet.id) return arcTestnet;
   if (chainId === arbitrumSepolia.id) return arbitrumSepolia;
   if (chainId === arbitrumNitroLocal.id) return arbitrumNitroLocal;
   throw new Error(
-    `cadena: CHAIN_ID ${chainId ?? "(ausente)"} no reconocido. Usá ${arbitrumNitroLocal.id} (local) o ${arbitrumSepolia.id} (Arbitrum Sepolia).`,
+    `cadena: CHAIN_ID ${chainId ?? "(ausente)"} no reconocido. Usá ${arcTestnet.id} (Arc Testnet), ` +
+      `${arbitrumSepolia.id} (Arbitrum Sepolia) o ${arbitrumNitroLocal.id} (Nitro local).`,
   );
 }
 
@@ -127,8 +163,8 @@ export interface ChainClient {
    *
    * Imprescindible: el USDC de Circle tiene 6 decimales y el `mock_usdc` local
    * tiene 0. Pasar el número sin escalar creaba retos de 0.000025 USDC contra el
-   * USDC real, y el depósito fallaba con `incorrect_deposit_amount` porque la
-   * Mini App sí escalaba. Los decimales se leen del token, nunca se asumen.
+   * USDC real, y el depósito fallaba por monto incorrecto porque la Mini App sí
+   * escalaba. Los decimales se leen del token, nunca se asumen.
    */
   escalarUsdc(monto: number): Promise<bigint>;
   /**
@@ -157,8 +193,11 @@ export function crearChainClient(config: ChainConfig): ChainClient {
 
     async escalarUsdc(monto) {
       if (decimalesCache === null) {
-        // La dirección viene por configuración: el `ChallengePool` del equipo no
-        // expone un getter `usdc()`, así que no se puede deducir del contrato.
+        // La dirección viene por configuración. El contrato Solidity sí expone un
+        // getter `usdc()`, pero el Rust/Stylus no, así que se mantiene la
+        // configuración explícita para que el worker sirva a las dos cadenas.
+        // Los decimales se leen del token, nunca se asumen: en Arc son 6 aunque
+        // la interfaz nativa de la misma moneda sea de 18.
         decimalesCache = Number(
           await publicClient.readContract({
             address: config.usdcAddress,
