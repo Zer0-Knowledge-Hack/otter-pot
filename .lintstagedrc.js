@@ -1,7 +1,7 @@
 const path = require("path");
 
 const buildNextEslintCommand = (filenames) =>
-  `yarn workspace @ss/nextjs eslint --fix ${filenames
+  `yarn workspace otterpot-nextjs eslint --fix ${filenames
     .map((f) => path.relative(path.join("packages", "nextjs"), f))
     .join(" ")}`;
 

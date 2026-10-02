@@ -1,5 +1,5 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { encodeFunctionData, getAddress } from "viem";
+import { encodeFunctionData, getAddress, toFunctionSelector } from "viem";
 import type { Hex } from "viem";
 import { InMemoryConfirmationStore, registerConfirmation } from "../src/confirmations";
 import {
@@ -96,6 +96,8 @@ describe("W3.1 — construcción de la llamada a confirmResult (capa pura, sin r
       args: call.args,
     });
 
+    // Re-derivado, no copiado: si la firma cambiara en el contrato, este test cae.
+    expect(CONFIRM_RESULT_SELECTOR).toBe(toFunctionSelector("confirmResult(uint256,address)"));
     expect(CONFIRM_RESULT_SELECTOR).toBe("0x9c338d6b");
     expect(data.slice(0, 10)).toBe("0x9c338d6b");
     // El ganador va codificado como último argumento, no una dirección arbitraria.

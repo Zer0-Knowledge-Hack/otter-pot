@@ -1,0 +1,30 @@
+{
+  "network": "arc-testnet",
+  "chainId": 5042002,
+  "rpcUrl": "https://rpc.testnet.arc.io",
+  "explorer": "https://testnet.arcscan.app",
+  "contracts": {
+    "ChallengePool": {
+      "address": "0x3953ecD3f1797FD18b22a151fEF20C3f5Ae0aD0B",
+      "deploymentTx": "0x00df8e9d26d16803e995a2989518a0a47b047514ff5a52c8fdd4f727b0af7e7f",
+      "constructorArgs": {
+        "usdcToken": "0x3600000000000000000000000000000000000000",
+        "baseCommissionRate": 500
+      }
+    }
+  },
+  "tokens": {
+    "USDC": {
+      "address": "0x3600000000000000000000000000000000000000",
+      "decimals": 6,
+      "note": "System contract present at genesis. USDC is also the native gas token; the ERC-20 interface uses 6 decimals while the native interface uses 18. There is no wrapped USDC."
+    }
+  },
+  "verifiedCycle": {
+    "createChallenge": "0x4b3a9fc3ac12fbef2876cca9e23c5557a4e79a9735622a23c087c19ca17f8c96",
+    "depositP1": "0x6ab74b64a69340317c43349242aa78f75a6898f3b30a7e994de0f012b6d41056",
+    "depositP2": "0xce2b3fbab5d491cb494617cc86c1e41e2120c378b9160741701cf8aba26b17aa",
+    "depositP3": "0x3cb4908ec3b5a3e4ac366530f58c93e0767e8d89fb5ef443af7efbbf305014ae",
+    "confirmResult": "0xeb8ceffdccccf2e46ab187881153167c5d8cae0149320bba94aff4fb7ab1f179"
+  }
+}

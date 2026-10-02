@@ -89,6 +89,18 @@ export function sumarse(assembly: Assembly, participante: Participante): Resulta
   if (yaEstaba) {
     return { ok: true, assembly, yaEstaba: true };
   }
+
+  // Sin este chequeo, dos usuarios de Telegram distintos podrían declarar la misma
+  // wallet: el conteo de consenso indexa los votos por wallet, no por usuario de
+  // Telegram (ver confirmations.ts), así que sus dos confirmaciones colapsarían en
+  // una sola — un hueco real de manipulación del consenso, no solo un detalle.
+  const walletYaUsada = assembly.participantes.some(
+    (p) => p.wallet.toLowerCase() === participante.wallet.toLowerCase(),
+  );
+  if (walletYaUsada) {
+    return { ok: false, error: "Esa wallet ya está anotada por otro participante de este reto." };
+  }
+
   return {
     ok: true,
     assembly: { ...assembly, participantes: [...assembly.participantes, participante] },

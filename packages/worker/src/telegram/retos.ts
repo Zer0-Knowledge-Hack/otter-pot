@@ -25,6 +25,7 @@ import {
 } from "./assembly";
 import type { Assembly } from "./assembly";
 import { describirEstado } from "./chain";
+import { describirErrorDeContrato } from "./errores";
 import type { ChainClient } from "./chain";
 import { keys, readJson, writeJson } from "./store";
 import type { KeyValueStore } from "./store";
@@ -231,7 +232,10 @@ export async function handleAbrir(
       ].join("\n"),
     );
   } catch (error) {
-    const motivo = error instanceof Error ? error.message : String(error);
+    // El contrato revierte con custom errors (`DuplicateParticipant`,
+    // `ParticipantIsZeroAddress`, …): se traducen a algo accionable en vez de
+    // volcarle al usuario el error crudo de viem.
+    const motivo = describirErrorDeContrato(error);
     await responder(`No pude escribir en la cadena: ${escapeHtml(motivo)}\nEl armado sigue intacto.`);
   }
 }
@@ -463,7 +467,7 @@ export async function handleConfirmar(
       ].join("\n"),
     );
   } catch (error) {
-    const motivo = error instanceof Error ? error.message : String(error);
+    const motivo = describirErrorDeContrato(error);
     await responder(`No pude resolver en la cadena: ${escapeHtml(motivo)}\nEl reto no cambió de estado.`);
   }
 }
@@ -522,9 +526,10 @@ export async function handleReembolso(
       ].join("\n"),
     );
   } catch (error) {
-    const motivo = error instanceof Error ? error.message : String(error);
-    // El caso más común: todavía no venció el plazo y el contrato lo rechaza.
-    await responder(`No pude reembolsar: ${escapeHtml(motivo)}\nRevisá que el plazo haya vencido.`);
+    // El caso más común: todavía no venció el plazo y el contrato revierte con
+    // `DeadlineNotReached`, que el traductor ya convierte en algo legible.
+    const motivo = describirErrorDeContrato(error);
+    await responder(`No pude reembolsar: ${escapeHtml(motivo)}`);
   }
 }
 

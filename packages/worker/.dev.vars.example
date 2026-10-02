@@ -13,19 +13,31 @@ TELEGRAM_WEBHOOK_SECRET=
 ENVIRONMENT=development
 
 # ── Cadena ────────────────────────────────────────────────────────────────────
-# Arbitrum Sepolia. Para el devnode local: http://127.0.0.1:8547 y CHAIN_ID=412346
-CHAIN_RPC_URL=https://sepolia-rollup.arbitrum.io/rpc
-CHAIN_ID=421614
+# Arc testnet (Circle). Los cuatro valores salen de
+# packages/arc/deployments/arc-testnet.json, que es el registro canonico del deploy.
+# CHAIN_ID y CHAIN_RPC_URL tienen que ser de la misma red: si no coinciden, el nodo
+# rechaza la firma con «invalid chain id for signer».
+#
+# Otras cadenas soportadas (cambiar las cuatro variables juntas):
+#   Arbitrum Sepolia → CHAIN_ID=421614  CHAIN_RPC_URL=https://sepolia-rollup.arbitrum.io/rpc
+#                      CHALLENGE_POOL_ADDRESS=0xbc0ce54d80b3f95067285297f6ec052e79ecef46
+#                      USDC_ADDRESS=0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d
+#   Nitro local      → CHAIN_ID=412346  CHAIN_RPC_URL=http://127.0.0.1:8547
+CHAIN_RPC_URL=https://rpc.testnet.arc.io
+CHAIN_ID=5042002
 
-# Contratos desplegados (SDD v6 §5.3.1).
-CHALLENGE_POOL_ADDRESS=0xbc0ce54d80b3f95067285297f6ec052e79ecef46
+# ChallengePool (Solidity) desplegado en Arc testnet.
+CHALLENGE_POOL_ADDRESS=0x3953ecD3f1797FD18b22a151fEF20C3f5Ae0aD0B
 
-# USDC de Circle en Arbitrum Sepolia, 6 decimales. Se lee para escalar los montos.
-USDC_ADDRESS=0x75faf114eafb1BDbe2F0316DF893fd58CE46AA4d
+# USDC de Arc: contrato de sistema presente en el genesis. Su interfaz ERC-20 —la
+# que usa el pozo— tiene 6 decimales, y los montos se escalan leyendolos del token.
+# Ojo: la misma moneda es el gas nativo de Arc y ahi la interfaz es de 18 decimales.
+USDC_ADDRESS=0x3600000000000000000000000000000000000000
 
 # Cuenta operadora: wallet de testnet dedicada y descartable, NUNCA una con fondos
 # reales. Tiene que estar registrada con addOperator() por el owner del pool, o
-# /confirmar va a fallar al resolver.
+# /confirmar va a fallar al resolver. En Arc el gas se paga en USDC, asi que esta
+# cuenta necesita saldo de USDC para firmar.
 OPERATOR_PRIVATE_KEY=
 
 # ── Mini App ──────────────────────────────────────────────────────────────────

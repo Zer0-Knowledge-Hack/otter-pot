@@ -1,0 +1,10 @@
+[profile.default]
+src = "src"
+test = "test"
+out = "out"
+libs = []
+solc_version = "0.8.24"
+optimizer = true
+optimizer_runs = 200
+# No remappings and no external libraries on purpose: this package must build
+# offline, so every helper (safe ERC-20 calls, test assertions) is hand-written.
