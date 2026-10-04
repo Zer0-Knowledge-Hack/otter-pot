@@ -51,7 +51,7 @@ Path: `packages/stylus/contracts/treasury_vault/src/logic.rs`
 
 ## Commit 3: feat(contracts): owner-only loss simulation in mock_strategy (~25)
 
-- [ ] 3.1 Add `simulate_loss(amount)` (owner-only, transfers USDC to owner, `insufficient_assets` revert) and `LossSimulated(uint256)` in `packages/stylus/contracts/mock_strategy/src/lib.rs`.
+- [x] 3.1 Add `simulate_loss(amount)` (owner-only, transfers USDC to owner, `insufficient_assets` revert) and `LossSimulated(uint256)` in `packages/stylus/contracts/mock_strategy/src/lib.rs`.
 - [ ] 3.2 Verify `cargo fmt`, `cargo clippy`, `cargo stylus check` (mock_strategy).
 
 ## Commit 4: test(scripts): accrual devnode scenarios (~125)
