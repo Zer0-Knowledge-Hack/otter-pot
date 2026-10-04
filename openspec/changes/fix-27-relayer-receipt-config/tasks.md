@@ -66,4 +66,4 @@ All paths below are relative to `packages/worker/` unless prefixed `docs/`. Afte
 
 ## Manual verification
 
-- [ ] 5.1 Manual, not automatable: one real challenge resolution on Arbitrum Sepolia (secrets set, `wrangler dev`/deploy); confirm receipt verified, `confirmada`, announcement.
+- [x] 5.1 Manual, not automatable: one real challenge resolution on Arbitrum Sepolia (secrets set, `wrangler dev`/deploy); confirm receipt verified, `confirmada`, announcement.
