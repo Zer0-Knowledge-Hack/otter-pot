@@ -1,4 +1,6 @@
 // @ts-check
+// Next carga este archivo como CommonJS: `require` es lo correcto acá.
+// eslint-disable-next-line @typescript-eslint/no-require-imports
 const path = require("path");
 
 /**
@@ -45,8 +47,7 @@ const nextConfig = {
   trailingSlash: true,
 
   typescript: {
-    // Scaffold + wagmi tipados rígidos; no bloquear export estático
-    ignoreBuildErrors: true,
+    ignoreBuildErrors: process.env.NEXT_PUBLIC_IGNORE_BUILD_ERROR === "true",
   },
 
   allowedDevOrigins: ["192.168.100.31", "192.168.36.1", "127.0.0.1", "localhost"],

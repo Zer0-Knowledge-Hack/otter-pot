@@ -15,16 +15,13 @@ const loadWeb3Shell = () => import("~~/components/ScaffoldEthAppWithProviders");
 // prerenderizando las páginas que usan hooks de wagmi.
 const Web3Shell = dynamic(() => loadWeb3Shell().then(m => m.Web3Shell));
 
-/** Rutas que no tocan la wallet: se renderizan sin Wagmi ni RainbowKit. */
-const WALLET_FREE_PREFIXES = ["/manual", "/como-usar"];
-
+/** Solo la landing no toca la wallet: se renderiza sin Wagmi ni RainbowKit. */
 function needsWallet(pathname: string | null) {
   const path = (pathname || "/").replace(/\/+$/, "") || "/";
-  if (path === "/") return false;
-  return !WALLET_FREE_PREFIXES.some(prefix => path === prefix || path.startsWith(`${prefix}/`));
+  return path !== "/";
 }
 
-/** Precarga el chunk de Web3 cuando el navegador está libre, para que /login y /app abran rápido. */
+/** Precarga el chunk de Web3 cuando el navegador está libre, para que las páginas con wallet abran rápido. */
 function usePrefetchWeb3Shell(enabled: boolean) {
   useEffect(() => {
     if (!enabled) return;

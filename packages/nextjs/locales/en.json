@@ -519,6 +519,51 @@
       "custody": "The money sits in a contract on Arbitrum, not in anyone's hands.",
       "receive": "Receive funds with your QR code and pay for challenges in two taps.",
       "access": "Sign in with Google, your wallet, or both."
+    },
+    "noWalletMobile": "On your phone, open OtterPot inside the MetaMask app or connect with WalletConnect.",
+    "openInMetaMask": "Open in MetaMask"
+  },
+  "siteChrome": {
+    "home": "Home",
+    "debugContracts": "Debug contracts",
+    "blockExplorer": "Block explorer",
+    "forkMe": "Fork me",
+    "support": "Support"
+  },
+  "notFound": {
+    "title": "Page not found",
+    "body": "The page you are looking for does not exist.",
+    "home": "Go home"
+  },
+  "depositPage": {
+    "title": "Deposit into the challenge",
+    "missingConfig": "The contract addresses are not configured. Let the bot admin know.",
+    "challenge": "Challenge",
+    "yourDeposit": "Your deposit",
+    "status": "Status",
+    "statuses": {
+      "open": "Open",
+      "locked": "Locked",
+      "resolved": "Resolved",
+      "refunded": "Refunded",
+      "unknown": "Unknown",
+      "unreadable": "Could not read it"
+    },
+    "closed": "This challenge no longer accepts deposits: it is {status}.",
+    "confirmed": "✅ Deposit confirmed",
+    "viewOnArbiscan": "View on Arbiscan",
+    "backToGroup": "You can go back to the Telegram group now.",
+    "connect": "Connect wallet",
+    "connecting": "Connecting…",
+    "connected": "Connected:",
+    "approving": "Approving USDC…",
+    "depositing": "Depositing…",
+    "deposit": "Deposit {amount} USDC",
+    "twoSignatures": "Two signatures: first you allow the contract to move your USDC, then you deposit.",
+    "errors": {
+      "noWallet": "No wallet found in this browser. Install MetaMask and come back.",
+      "noAccount": "You did not authorize any account.",
+      "insufficient": "Not enough USDC: you need {amount} and have less."
     }
   }
 }

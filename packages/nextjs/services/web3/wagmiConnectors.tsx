@@ -1,4 +1,4 @@
-import { connectorsForWallets } from "@rainbow-me/rainbowkit";
+import { connectorsForWallets, type WalletList } from "@rainbow-me/rainbowkit";
 import {
   braveWallet,
   ledgerWallet,
@@ -20,6 +20,10 @@ rainbowkitBurnerWallet.rpcUrls = {
   [arbitrumNitro.id]: arbitrumNitro.rpcUrls.default.http[0],
 };
 
+// burner-connector trae su propia copia de RainbowKit: el tipo de su wallet no coincide
+// con el de la copia de la app aunque en ejecución es la misma forma (CreateWalletFn).
+const burnerWallet = rainbowkitBurnerWallet as unknown as WalletList[number]["wallets"][number];
+
 const wallets = [
   metaMaskWallet,
   walletConnectWallet,
@@ -29,7 +33,7 @@ const wallets = [
   safeWallet,
   ...(!targetNetworks.some(network => network.id !== (arbitrumNitro as chains.Chain).id) ||
   !onlyLocalBurnerWallet
-    ? [rainbowkitBurnerWallet]
+    ? [burnerWallet]
     : []),
 ];
 

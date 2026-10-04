@@ -2,18 +2,17 @@
 
 import { useEffect, useMemo } from "react";
 import { useSessionStorage } from "usehooks-ts";
-import { useTheme } from "next-themes";
 import { BarsArrowUpIcon } from "@heroicons/react/20/solid";
 import { ContractUI } from "~~/app/debug/_components/contract";
 import { ContractName, GenericContract } from "~~/utils/scaffold-eth/contract";
 import { useAllContracts } from "~~/utils/scaffold-eth/contractsData";
+import { useIsDarkMode } from "~~/hooks/useIsDarkMode";
 
 const selectedContractStorageKey = "scaffoldEth2.selectedContract";
 
 export function DebugContracts() {
   const contractsData = useAllContracts();
-  const { resolvedTheme } = useTheme();
-  const isDarkMode = useMemo(() => resolvedTheme === "dark", [resolvedTheme]);
+  const isDarkMode = useIsDarkMode();
   const contractNames = useMemo(
     () =>
       Object.keys(contractsData).sort((a, b) => {

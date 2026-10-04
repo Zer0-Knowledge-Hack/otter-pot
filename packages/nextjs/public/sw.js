@@ -62,7 +62,7 @@ self.addEventListener("fetch", event => {
 /** Abrir la app al tocar una notificación */
 self.addEventListener("notificationclick", event => {
   event.notification.close();
-  const target = (event.notification.data && event.notification.data.url) || "/app/notifications/";
+  const target = (event.notification.data && event.notification.data.url) || "/";
   event.waitUntil(
     self.clients.matchAll({ type: "window", includeUncontrolled: true }).then(clientList => {
       for (const client of clientList) {
@@ -80,7 +80,7 @@ self.addEventListener("notificationclick", event => {
 self.addEventListener("push", event => {
   let title = "OtterPot";
   let body = "Tienes una actualización en tu reto";
-  let url = "/app/notifications/";
+  let url = "/";
   try {
     const data = event.data ? event.data.json() : null;
     if (data) {

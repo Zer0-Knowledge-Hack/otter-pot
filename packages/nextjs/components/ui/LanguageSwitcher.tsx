@@ -30,7 +30,7 @@ export function LanguageSwitcher({ className }: { className?: string }) {
               aria-label={t(`languageSwitcher.${code}`)}
               onClick={() => setLocale(code)}
               className={cn(
-                "rounded-md px-1 py-0.5 font-semibold uppercase outline-none transition-colors hover:text-otter-text focus-visible:ring-2 focus-visible:ring-otter-action",
+                "relative rounded-md px-1 py-0.5 font-semibold uppercase outline-none transition-colors after:absolute after:-inset-x-1 after:-inset-y-2 after:content-[''] hover:text-otter-text focus-visible:ring-2 focus-visible:ring-otter-action",
                 active && "text-otter-action",
               )}
             >

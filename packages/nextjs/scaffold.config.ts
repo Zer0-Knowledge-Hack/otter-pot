@@ -17,7 +17,14 @@ export type ScaffoldConfig = {
 
 export const DEFAULT_ALCHEMY_API_KEY = "oKxs-03sij-U_N0iOlrSsZFr29-IqbuF";
 
-function resolveTargetNetworks(): readonly Chain[] {
+// Tupla de una cadena concreta (no `Chain[]`): los tipos de contrato del scaffold
+// (`utils/scaffold-eth/contract.ts`) y `createConfig` de wagmi necesitan el chainId literal.
+type TargetNetworks =
+  | readonly [typeof chains.arbitrumSepolia]
+  | readonly [typeof chains.arbitrumNitro]
+  | readonly [typeof chains.arbitrum];
+
+function resolveTargetNetworks(): TargetNetworks {
   const key = resolveNetworkKey();
   if (key === "arbitrumSepolia") {
     return [chains.arbitrumSepolia];

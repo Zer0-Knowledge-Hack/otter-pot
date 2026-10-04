@@ -318,10 +318,10 @@
   "team": {
     "title": "Quiénes lo estamos construyendo",
     "roles": {
-      "blockchain": "Blockchain Developer",
-      "frontend": "Frontend Developer",
-      "backend": "Backend Developer",
-      "business": "Business Developer"
+      "blockchain": "Desarrollo blockchain",
+      "frontend": "Desarrollo frontend",
+      "backend": "Desarrollo backend",
+      "business": "Desarrollo de negocio"
     }
   },
   "art": {
@@ -519,6 +519,51 @@
       "custody": "El dinero queda en un contrato en Arbitrum, no en manos de nadie.",
       "receive": "Recibí fondos con tu QR y pagá retos en dos toques.",
       "access": "Entrá con Google, con tu billetera o con los dos."
+    },
+    "noWalletMobile": "En el teléfono, abrí OtterPot dentro de la app de MetaMask o conectá con WalletConnect.",
+    "openInMetaMask": "Abrir en MetaMask"
+  },
+  "siteChrome": {
+    "home": "Inicio",
+    "debugContracts": "Contratos (debug)",
+    "blockExplorer": "Explorador de bloques",
+    "forkMe": "Ver código",
+    "support": "Soporte"
+  },
+  "notFound": {
+    "title": "Página no encontrada",
+    "body": "La página que buscás no existe.",
+    "home": "Volver al inicio"
+  },
+  "depositPage": {
+    "title": "Depositar en el reto",
+    "missingConfig": "Falta configurar las direcciones de los contratos. Avisale a quien administra el bot.",
+    "challenge": "Reto",
+    "yourDeposit": "Tu depósito",
+    "status": "Estado",
+    "statuses": {
+      "open": "Abierto",
+      "locked": "Bloqueado",
+      "resolved": "Resuelto",
+      "refunded": "Reembolsado",
+      "unknown": "Desconocido",
+      "unreadable": "No se pudo leer"
+    },
+    "closed": "Este reto ya no acepta depósitos: está {status}.",
+    "confirmed": "✅ Depósito confirmado",
+    "viewOnArbiscan": "Ver en Arbiscan",
+    "backToGroup": "Ya podés volver al grupo de Telegram.",
+    "connect": "Conectar wallet",
+    "connecting": "Conectando…",
+    "connected": "Conectado:",
+    "approving": "Aprobando USDC…",
+    "depositing": "Depositando…",
+    "deposit": "Depositar {amount} USDC",
+    "twoSignatures": "Son dos firmas: primero autorizás al contrato a mover tu USDC, después depositás.",
+    "errors": {
+      "noWallet": "No encontré una wallet en este navegador. Instalá MetaMask y volvé a entrar.",
+      "noAccount": "No autorizaste ninguna cuenta.",
+      "insufficient": "No te alcanza el USDC: necesitás {amount} y tenés menos."
     }
   }
 }

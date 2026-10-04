@@ -1,12 +1,13 @@
-import React, { useMemo } from "react";
+import React from "react";
 import Link from "next/link";
-import { useTheme } from "next-themes";
 import { MagnifyingGlassIcon } from "@heroicons/react/24/outline";
 //import { HeartIcon } from "@heroicons/react/24/outline";
 //import { BuidlGuidlLogo } from "~~/components/assets/BuidlGuidlLogo";
 import { AngularBorder } from "~~/components/AngularBorder";
 import { Faucet } from "~~/components/scaffold-eth";
 import { useTargetNetwork } from "~~/hooks/scaffold-eth/useTargetNetwork";
+import { useIsDarkMode } from "~~/hooks/useIsDarkMode";
+import { useTranslation } from "~~/lib/i18n";
 import { arbitrumNitro } from "~~/utils/scaffold-stylus/supportedChains";
 
 /**
@@ -14,12 +15,10 @@ import { arbitrumNitro } from "~~/utils/scaffold-stylus/supportedChains";
  */
 export const Footer = () => {
   const { targetNetwork } = useTargetNetwork();
-  const { resolvedTheme } = useTheme();
   const isLocalNetwork = targetNetwork.id === arbitrumNitro.id;
 
-  const isDarkMode = useMemo(() => {
-    return resolvedTheme === "dark";
-  }, [resolvedTheme]);
+  const isDarkMode = useIsDarkMode();
+  const { t } = useTranslation();
 
   return (
     <div
@@ -63,7 +62,7 @@ export const Footer = () => {
                         textOverflow: "ellipsis",
                       }}
                     >
-                      Block Explorer
+                      {t("siteChrome.blockExplorer")}
                     </span>
                   </Link>
                 </div>
@@ -113,7 +112,7 @@ export const Footer = () => {
                 whiteSpace: "nowrap",
               }}
             >
-              Fork me
+              {t("siteChrome.forkMe")}
             </span>
           </a>
 
@@ -157,7 +156,7 @@ export const Footer = () => {
                 whiteSpace: "nowrap",
               }}
             >
-              Support
+              {t("siteChrome.support")}
             </span>
           </a>
         </div>

@@ -124,7 +124,7 @@ export function InstallPWA({ className }: { className?: string }) {
             <button
               type="button"
               onClick={dismiss}
-              className="rounded-lg p-1 text-otter-muted hover:bg-otter-surface hover:text-otter-text"
+              className="rounded-lg p-1 text-otter-muted hover:bg-otter-surface hover:text-otter-text relative after:absolute after:-inset-2 after:content-['']"
               aria-label={t("installPwa.close")}
             >
               <X className="h-4 w-4" />

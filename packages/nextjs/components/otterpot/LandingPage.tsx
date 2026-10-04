@@ -35,7 +35,6 @@ import {
   Award,
   Menu,
   X,
-  BookMarked,
   FileText,
   ExternalLink,
   Droplets,
@@ -63,6 +62,9 @@ import { openTelegramUrl } from "~~/services/telegram/telegram";
 import { cn } from "~~/utils/cn";
 
 const partners = ["Arbitrum", "Stylus", "Telegram", "Firebase", "Privy", "Ethereum"];
+
+/** USDC de prueba en Arbitrum Sepolia: faucet de Circle (SDD §7.3.2). */
+const TEST_FUNDS_URL = "https://faucet.circle.com/";
 
 const headerLinks = [
   ["#como", "nav.howItWorks"],
@@ -262,7 +264,8 @@ export function LandingPage() {
             <SwitchTheme />
             {/* Acciones, separadas de las preferencias */}
             <span aria-hidden="true" className="hidden h-6 w-px bg-otter-border sm:block" />
-            <Link href="/login" className="hidden sm:block">
+            {/* /app/ redirige al login si no hay sesión (AuthGate). */}
+            <Link href="/app/" className="hidden sm:block">
               <Button size="sm" variant="secondary">{t("nav.signIn")}</Button>
             </Link>
             <Button
@@ -306,18 +309,21 @@ export function LandingPage() {
                   {label}
                 </a>
               ))}
-              <Link
-                href="/manual/"
-                onClick={() => setMenuOpen(false)}
-                className="rounded-xl px-3 py-2.5 text-otter-muted hover:bg-otter-surface hover:text-otter-text"
-              >
-                {t("nav.manual")}
-              </Link>
             </nav>
             <div className="mt-auto space-y-2 pt-6">
-              <Link href="/login" onClick={() => setMenuOpen(false)}>
-                <Button className="w-full">{t("nav.getStarted")}</Button>
+              <Link href="/app/" className="block" onClick={() => setMenuOpen(false)}>
+                <Button variant="secondary" className="w-full">{t("nav.signIn")}</Button>
               </Link>
+              <Button
+                type="button"
+                className="w-full"
+                onClick={() => {
+                  openTelegramUrl(config.telegramBotUrl);
+                  setMenuOpen(false);
+                }}
+              >
+                {t("nav.getStarted")}
+              </Button>
               <Button
                 type="button"
                 variant="telegram"
@@ -354,11 +360,14 @@ export function LandingPage() {
               {t("hero.subtitle")}
             </p>
             <div className="mt-5 flex flex-col gap-2.5 sm:mt-7 sm:flex-row sm:flex-wrap">
-              <Link href="/login" className="w-full sm:w-auto">
-                <Button size="lg" className="w-full sm:w-auto">
-                  {t("hero.ctaPrimary")} <ArrowRight className="h-4 w-4" />
-                </Button>
-              </Link>
+              <Button
+                type="button"
+                size="lg"
+                className="w-full sm:w-auto"
+                onClick={() => openTelegramUrl(config.telegramBotUrl)}
+              >
+                {t("hero.ctaPrimary")} <ArrowRight className="h-4 w-4" />
+              </Button>
               <a href="#como" className="w-full sm:w-auto">
                 <Button size="lg" variant="secondary" className="w-full sm:w-auto">
                   <Play className="h-4 w-4" /> {t("hero.ctaSecondary")}
@@ -379,11 +388,6 @@ export function LandingPage() {
               <Button type="button" size="sm" variant="ghost" className="w-full sm:w-auto" onClick={() => openTelegramUrl(config.telegramMiniAppUrl)}>
                 {t("hero.miniApp")}
               </Button>
-              <Link href="/manual/" className="w-full sm:w-auto">
-                <Button type="button" size="sm" variant="ghost" className="w-full sm:w-auto">
-                  <BookMarked className="h-3.5 w-3.5" /> {t("hero.manual")}
-                </Button>
-              </Link>
             </div>
           </div>
           <div className="relative order-1 md:order-2 animate-[fadeUp_0.7s_ease]">
@@ -442,16 +446,11 @@ export function LandingPage() {
               }))}
             />
             <div className="mt-8 flex flex-col items-center justify-center gap-2 sm:flex-row">
-              <Link href="/manual/">
-                <Button size="sm" variant="secondary" className="h-9 px-4 text-sm">
-                  {t("how.manuals")} <ArrowRight className="h-3.5 w-3.5" />
-                </Button>
-              </Link>
-              <Link href="/manual/faucets/">
+              <a href={TEST_FUNDS_URL} target="_blank" rel="noreferrer">
                 <Button size="sm" variant="ghost" className="h-9 px-4 text-sm">
                   <Droplets className="h-3.5 w-3.5" /> {t("how.faucets")}
                 </Button>
-              </Link>
+              </a>
             </div>
           </div>
         </section>
@@ -557,19 +556,10 @@ export function LandingPage() {
                   </div>
                   <ExternalLink className="ml-auto h-4 w-4 shrink-0 text-otter-muted" />
                 </a>
-                <Link
-                  href="/manual/sencillo/"
-                  className="flex items-center gap-3 rounded-2xl border border-otter-border bg-otter-card p-4 transition hover:border-otter-action/40"
-                >
-                  <BookMarked className="h-5 w-5 shrink-0 text-otter-action" />
-                  <div className="min-w-0">
-                    <p className="text-sm font-bold">{t("demo.simpleManual.title")}</p>
-                    <p className="text-xs text-otter-muted">{t("demo.simpleManual.body")}</p>
-                  </div>
-                  <ArrowRight className="ml-auto h-4 w-4 shrink-0 text-otter-muted" />
-                </Link>
-                <Link
-                  href="/manual/faucets/"
+                <a
+                  href={TEST_FUNDS_URL}
+                  target="_blank"
+                  rel="noreferrer"
                   className="flex items-center gap-3 rounded-2xl border border-otter-border bg-otter-card p-4 transition hover:border-otter-action/40"
                 >
                   <Droplets className="h-5 w-5 shrink-0 text-otter-action" />
@@ -577,8 +567,8 @@ export function LandingPage() {
                     <p className="text-sm font-bold">{t("demo.faucets.title")}</p>
                     <p className="text-xs text-otter-muted">{t("demo.faucets.body")}</p>
                   </div>
-                  <ArrowRight className="ml-auto h-4 w-4 shrink-0 text-otter-muted" />
-                </Link>
+                  <ExternalLink className="ml-auto h-4 w-4 shrink-0 text-otter-muted" />
+                </a>
               </div>
             </div>
           </div>
@@ -795,14 +785,11 @@ export function LandingPage() {
             <h2 className="mt-4 text-2xl font-bold tracking-tight sm:text-3xl">{t("finalCta.title")}</h2>
             <p className="mt-3 text-sm text-otter-muted">{t("finalCta.subtitle")}</p>
             <div className="mt-6 flex flex-col justify-center gap-2.5 sm:flex-row sm:flex-wrap">
-              <Link href="/login">
-                <Button size="lg" className="w-full sm:w-auto">{t("finalCta.primary")}</Button>
-              </Link>
+              <Button size="lg" type="button" className="w-full sm:w-auto" onClick={() => openTelegramUrl(config.telegramBotUrl)}>
+                {t("finalCta.primary")}
+              </Button>
               <Button size="lg" variant="telegram" type="button" className="w-full sm:w-auto" onClick={() => openTelegramUrl(config.telegramGroupUrl)}>
                 {t("finalCta.group")}
-              </Button>
-              <Button size="lg" variant="secondary" type="button" className="w-full sm:w-auto" onClick={() => openTelegramUrl(config.telegramBotUrl)}>
-                {bot}
               </Button>
             </div>
           </div>
@@ -821,11 +808,19 @@ export function LandingPage() {
           >
             {t("mobileBar.group")}
           </Button>
-          <Link href="/login" className="flex-1">
-            <Button size="sm" className="w-full">
-              {t("mobileBar.start")}
+          <Link href="/app/" className="flex-1">
+            <Button size="sm" variant="secondary" className="w-full">
+              {t("nav.signIn")}
             </Button>
           </Link>
+          <Button
+            type="button"
+            size="sm"
+            className="flex-1"
+            onClick={() => openTelegramUrl(config.telegramBotUrl)}
+          >
+            {t("mobileBar.start")}
+          </Button>
         </div>
       </div>
 
@@ -842,9 +837,12 @@ export function LandingPage() {
             <ul className="mt-3 space-y-2 text-sm text-otter-muted">
               <li><a href="#producto">{t("footer.whatIs")}</a></li>
               <li><a href="#como">{t("footer.howItWorks")}</a></li>
-              <li><Link href="/manual/">{t("footer.manual")}</Link></li>
               <li><a href="#presentacion">{t("footer.demo")}</a></li>
-              <li><Link href="/login">{t("footer.start")}</Link></li>
+              <li>
+                <button type="button" className="hover:text-otter-text" onClick={() => openTelegramUrl(config.telegramBotUrl)}>
+                  {t("footer.start")}
+                </button>
+              </li>
             </ul>
           </div>
           <div>

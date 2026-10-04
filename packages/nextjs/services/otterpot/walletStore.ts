@@ -1,3 +1,4 @@
+import type { Address } from "viem";
 import { create } from "zustand";
 
 type WalletState = {
@@ -5,7 +6,7 @@ type WalletState = {
   ready: boolean;
   isConnected: boolean;
   isConnecting: boolean;
-  address?: `0x${string}`;
+  address?: Address;
   chainId?: number;
   setReady: (ready: boolean) => void;
   setWallet: ( partial: Partial<Pick<WalletState, "isConnected" | "isConnecting" | "address" | "chainId">>) => void;

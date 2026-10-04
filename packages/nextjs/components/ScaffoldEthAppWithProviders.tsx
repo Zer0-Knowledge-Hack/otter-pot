@@ -22,14 +22,14 @@ import { wagmiConfig } from "~~/services/web3/wagmiConfig";
 import { arbitrumNitro, initBurnerPK } from "~~/utils/scaffold-stylus";
 import * as viemChains from "viem/chains";
 
-// Páginas con diseño propio (`DESIGN.md`): no llevan el header, el fondo ni el footer
-// del scaffold. Solo las rutas heredadas (/debug, /blockexplorer) los conservan.
-const OWN_LAYOUT_PATHS = ["/depositar"];
+// Solo las herramientas heredadas del scaffold llevan su header, fondo y footer. El resto
+// de las páginas tiene diseño propio (`DESIGN.md`) y no debe recibir un segundo header.
+const SCAFFOLD_CHROME_PATHS = ["/debug", "/blockexplorer"];
 
 const ScaffoldEthApp = ({ children }: { children: ReactNode }) => {
   const { targetNetwork } = useTargetNetwork();
   const pathname = usePathname();
-  const isMarketing = pathname === "/" || OWN_LAYOUT_PATHS.some(path => pathname?.startsWith(path));
+  const withScaffoldChrome = SCAFFOLD_CHROME_PATHS.some(path => pathname?.startsWith(path));
 
   useEffect(() => {
     if (targetNetwork.id === arbitrumNitro.id) {
@@ -40,12 +40,13 @@ const ScaffoldEthApp = ({ children }: { children: ReactNode }) => {
   return (
     <>
       <div className="flex min-h-screen flex-col">
-        {!isMarketing ? <Header /> : null}
-        <main className="relative flex flex-1 flex-col">
-          {!isMarketing ? <BackGround /> : null}
+        {withScaffoldChrome ? <Header /> : null}
+        {/* overflow-x-clip: los círculos de BackGround (630px) no generan scroll horizontal en móvil. */}
+        <main className="relative flex flex-1 flex-col overflow-x-clip">
+          {withScaffoldChrome ? <BackGround /> : null}
           {children}
         </main>
-        {!isMarketing ? <Footer /> : null}
+        {withScaffoldChrome ? <Footer /> : null}
       </div>
       <Toaster />
     </>
