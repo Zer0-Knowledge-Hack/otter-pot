@@ -64,10 +64,10 @@ Path: `packages/stylus/contracts/treasury_vault/src/logic.rs`
 
 ## Commit 5: docs(sdd): accrual guards, DD-05 implemented (~5)
 
-- [ ] 5.1 Update the section 7.2 sentence (skip on failed read, loss event, zero-share guards) and the DD-05 row status (line ~782) in `docs/SDD.md`.
+- [x] 5.1 Update the section 7.2 sentence (skip on failed read, loss event, zero-share guards) and the DD-05 row status (line ~782) in `docs/SDD.md`.
 
 ## Final verification
 
-- [ ] 6.1 `cargo test` green after every commit.
-- [ ] 6.2 No edit to `packages/worker/contracts/TreasuryVault.abi.json` (design: no change).
+- [x] 6.1 `cargo test` green after every commit.
+- [x] 6.2 No edit to `packages/worker/contracts/TreasuryVault.abi.json` (design: no change).
 - [ ] 6.3 Confirm diff is within 400 changed lines; otherwise request `size:exception`.
