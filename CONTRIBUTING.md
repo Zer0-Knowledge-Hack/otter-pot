@@ -72,13 +72,38 @@ yarn next:lint
 yarn next:check-types
 ```
 
+## Repository access and review rules
+
+These rules protect the project and the funds it handles. The branch and issue rules are enforced by GitHub branch protection and automation, not only by convention.
+
+**Who can work on the repository.** Only the project collaborators (the members of the `Zer0-Knowledge-Hack` organization) take issues, push branches and review pull requests. Everyone else is welcome to read the code, and to open an issue or comment with a proposal, but cannot claim issues or merge changes.
+
+**Taking issues.**
+
+- Only collaborators can be assigned to an issue. Assignment is requested in the issue and confirmed by a maintainer; do not work on an issue assigned to someone else.
+- Bots and automated coding agents (including AI coding agents) are never assigned to issues or pull requests. The `Issue assignment guard` workflow removes any assignee who is not a collaborator and leaves a comment.
+- Adding a GitHub App, bot or integration to the repository or the organization requires the approval of the team.
+
+**Changing `master`.**
+
+- Nobody pushes to `master`, administrators included. Force pushes and branch deletion are disabled.
+- Every change goes through a pull request from a feature branch.
+- A pull request needs **at least one approval from a collaborator who is not its author**. Authors never approve or merge their own work.
+- The approval must be given after the last push: new commits dismiss earlier approvals.
+- All review conversations must be resolved before merging.
+- [`.github/CODEOWNERS`](.github/CODEOWNERS) requests the review automatically.
+- Keep pull requests small and focused so that the reviewer can actually review them.
+
+**Accounts.** Every collaborator must enable two-factor authentication on their GitHub account. Secret scanning and push protection are enabled on the repository: if a push is blocked because it contains a credential, do not bypass the block; rotate the credential and remove it from the change.
+
 ## Workflow
 
-1. **Pick or open an issue.** Use the issue templates. Comment on the issue before starting so work is not duplicated.
+1. **Pick an issue.** Work on an issue assigned to you. If you want a new one, ask in the issue or to a maintainer. Use the issue templates when opening a new issue.
 2. **Branch from `master`** using a prefix that matches the change: `feat/...`, `fix/...`, `docs/...`, `test/...`, `chore/...`.
 3. **Keep changes focused.** One concern per pull request. If a change grows large, split it into reviewable slices.
 4. **Open a pull request** against `master` and fill in the pull request template. Link the issue (`Closes #123`).
-5. **Get a review.** At least one teammate must approve. Address feedback with new commits; do not force-push over a review in progress.
+5. **Get a review** from a collaborator who is not the author, as described above. Address feedback with new commits; do not force-push over a review in progress.
+6. **Merge** once the review is approved and the checks pass. Delete the branch after merging.
 
 ## Labels and milestones
 
