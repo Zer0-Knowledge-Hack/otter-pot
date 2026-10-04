@@ -41,7 +41,7 @@ yarn install
 
 *(Note: `yarn install --immutable` is the target for clean CI clones once the lockfile is refreshed in #18; use `yarn install` for local setup today).*
 
-Never commit private keys, Privy secrets, RPC keys, or real environment values. Use `dev.vars` locally and `wrangler secret put` in Cloudflare. *(Note: Contract addresses currently reside in `packages/worker/wrangler.toml` pointing to Arc testnet (5042002); migrating contract addresses to injected environment variables and reverting to Arbitrum Sepolia is the goal of #28).*
+Never commit private keys, Privy secrets, RPC keys, or real environment values. Use `dev.vars` locally and `wrangler secret put` in Cloudflare. *(Note: Contract addresses currently reside in `packages/worker/wrangler.toml` pointing to Arc testnet (5042002); migrating contract addresses to injected environment variables and reverting to Arbitrum Sepolia is the goal of #27).*
 
 ## Build and test
 
