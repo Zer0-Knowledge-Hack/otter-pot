@@ -69,8 +69,6 @@ const NO_DISPONIBLE_CONTRATO =
   "Todavía no está habilitado: necesita la próxima versión del contrato. Está diseñado y en camino.";
 const NO_DISPONIBLE_MINIAPP =
   "Todavía no está habilitado: necesita la Mini App para que firmes desde tu wallet. Está diseñado y en camino.";
-const NO_DISPONIBLE_PRONTO =
-  "Todavía no está habilitado. Es lo próximo que se implementa.";
 
 const AYUDA_PRIVADO = [
   "🦦 <b>OtterPot</b> — retos con pozo compartido, sin que nadie guarde la plata.",
