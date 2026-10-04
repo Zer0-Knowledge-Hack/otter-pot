@@ -42,11 +42,11 @@ Path: `packages/stylus/contracts/treasury_vault/src/logic.rs`
 
 ## Commit 2: feat(contracts): accrue on deposit, redeem, realize_yield (~75)
 
-- [ ] 2.1 Add `try_strategy_balance_of` (ZERO gives NoStrategy; Err or len < 32 gives Unavailable) in `packages/stylus/contracts/treasury_vault/src/contract/strategy/mod.rs`.
-- [ ] 2.2 Add `YieldLossRecognized(uint256 lost_assets, uint256 total_assets)` event and private infallible `accrue_yield` in `packages/stylus/contracts/treasury_vault/src/lib.rs`.
-- [ ] 2.3 Wire `deposit` per design order (accrue after `zero_assets`, then `shares_for_deposit`) in `lib.rs`.
-- [ ] 2.4 Wire `redeem_shares` (accrue after `zero_to`, then `assets_for_redeem`) in `lib.rs`.
-- [ ] 2.5 Make `realize_yield` call `require_admin` then `accrue_yield` (not pause-gated) in `lib.rs`.
+- [x] 2.1 Add `try_strategy_balance_of` (ZERO gives NoStrategy; Err or len < 32 gives Unavailable) in `packages/stylus/contracts/treasury_vault/src/contract/strategy/mod.rs`.
+- [x] 2.2 Add `YieldLossRecognized(uint256 lost_assets, uint256 total_assets)` event and private infallible `accrue_yield` in `packages/stylus/contracts/treasury_vault/src/lib.rs`.
+- [x] 2.3 Wire `deposit` per design order (accrue after `zero_assets`, then `shares_for_deposit`) in `lib.rs`.
+- [x] 2.4 Wire `redeem_shares` (accrue after `zero_to`, then `assets_for_redeem`) in `lib.rs`.
+- [x] 2.5 Make `realize_yield` call `require_admin` then `accrue_yield` (not pause-gated) in `lib.rs`.
 - [ ] 2.6 Verify `cargo fmt`, `cargo clippy`, `cargo test`, `cargo stylus check` (treasury_vault).
 
 ## Commit 3: feat(contracts): owner-only loss simulation in mock_strategy (~25)

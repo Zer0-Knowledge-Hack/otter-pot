@@ -9,6 +9,7 @@ use alloy_sol_types::{sol, SolCall};
 use stylus_sdk::call;
 
 use super::TreasuryVault;
+use crate::logic::BalanceRead;
 
 sol! {
     interface IStrategy {
@@ -66,6 +67,20 @@ pub fn strategy_balance_of(contract: &TreasuryVault, strategy: Address) -> U256 
     match call::static_call(contract, strategy, &data) {
         Ok(out) => read_u256(&out),
         Err(_) => U256::ZERO,
+    }
+}
+
+/// Failure-aware balance read used by yield accrual: distinguishes "no strategy"
+/// from a failed or short read so the caller can skip instead of assuming zero.
+#[allow(deprecated)]
+pub fn try_strategy_balance_of(contract: &TreasuryVault, strategy: Address) -> BalanceRead {
+    if strategy == Address::ZERO {
+        return BalanceRead::NoStrategy;
+    }
+    let data = IStrategy::balanceOfCall {}.abi_encode();
+    match call::static_call(contract, strategy, &data) {
+        Ok(out) if out.len() >= 32 => BalanceRead::Measured(U256::from_be_slice(&out[..32])),
+        _ => BalanceRead::Unavailable,
     }
 }
 

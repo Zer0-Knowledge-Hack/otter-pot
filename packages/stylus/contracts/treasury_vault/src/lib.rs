@@ -17,7 +17,9 @@ pub mod contract {
     };
 
     use super::logic;
-    use strategy::{strategy_balance_of, strategy_deposit, strategy_withdraw};
+    use strategy::{
+        strategy_balance_of, strategy_deposit, strategy_withdraw, try_strategy_balance_of,
+    };
 
     mod strategy;
 
@@ -49,6 +51,7 @@ pub mod contract {
             uint256 assets
         );
         event YieldRealized(uint256 added_assets, uint256 total_assets);
+        event YieldLossRecognized(uint256 lost_assets, uint256 total_assets);
         event StrategyUpdated(address indexed old_strategy, address indexed new_strategy);
         event StrategyDeployed(address indexed strategy, uint256 amount);
         event StrategyWithdrawn(address indexed strategy, uint256 amount);
@@ -94,6 +97,32 @@ pub mod contract {
                 Ok(out) => read_u256(&out),
                 Err(_) => U256::ZERO,
             }
+        }
+
+        /// Reconciles total assets against the strategy balance (yield or loss) without
+        /// touching shares. Infallible: no strategy or a failed read skips accrual and
+        /// keeps the previous accounting.
+        fn accrue_yield(&mut self) {
+            let strategy = self.strategy.get();
+            let read = try_strategy_balance_of(&*self, strategy);
+            let reconciled =
+                match logic::accrue(self.total_assets.get(), self.strategy_deployed.get(), read) {
+                    Some(r) => r,
+                    None => return,
+                };
+            match reconciled.delta {
+                logic::YieldDelta::None => return,
+                logic::YieldDelta::Gain(added_assets) => evm::log(YieldRealized {
+                    added_assets,
+                    total_assets: reconciled.total_assets,
+                }),
+                logic::YieldDelta::Loss(lost_assets) => evm::log(YieldLossRecognized {
+                    lost_assets,
+                    total_assets: reconciled.total_assets,
+                }),
+            }
+            self.total_assets.set(reconciled.total_assets);
+            self.strategy_deployed.set(reconciled.deployed);
         }
 
         fn require_admin(&self) -> Result<(), Vec<u8>> {
@@ -170,13 +199,11 @@ pub mod contract {
                 return Err(b"zero_assets".to_vec());
             }
 
-            let price = self.price_per_share();
+            // Accrue strategy yield/loss before pricing the new shares.
+            self.accrue_yield();
             let total = self.total_assets.get();
-            let shares = if total.is_zero() {
-                assets
-            } else {
-                (assets * U256::from(1_000_000_000_000_000_000u128)) / price
-            };
+            let shares = logic::shares_for_deposit(assets, total, self.total_shares.get())
+                .map_err(|e| e.to_vec())?;
 
             self.total_assets.set(total + assets);
             let new_shares = self.total_shares.get() + shares;
@@ -239,8 +266,9 @@ pub mod contract {
             if to == Address::ZERO {
                 return Err(b"zero_to".to_vec());
             }
-            let price = self.price_per_share();
-            let assets = (shares * price) / U256::from(1_000_000_000_000_000_000u128);
+            // Accrue strategy yield/loss before pricing the redemption.
+            self.accrue_yield();
+            let assets = logic::assets_for_redeem(shares, self.total_assets.get(), current_shares);
 
             self.total_shares.set(current_shares - shares);
             self.shares_of.setter(holder).set(holder_shares - shares);
@@ -340,27 +368,11 @@ pub mod contract {
             self.withdraw_from_strategy(all)
         }
 
-        /// Acredita el rendimiento medido en la estrategia activa (sin argumento).
-        /// Solo admin. No-op si no hay estrategia configurada.
+        /// Accrues the strategy balance change (yield or loss) into total assets.
+        /// Admin only, not pause-gated. Same accrual as deposit and redeem.
         pub fn realize_yield(&mut self) -> Result<(), Vec<u8>> {
             self.require_admin()?;
-            let strategy = self.strategy.get();
-            if strategy == Address::ZERO {
-                return Ok(());
-            }
-            let balance = strategy_balance_of(&*self, strategy);
-            let deployed = self.strategy_deployed.get();
-            let delta = logic::positive_yield_delta(balance, deployed);
-            if delta.is_zero() {
-                return Ok(());
-            }
-            let new_total = self.total_assets.get() + delta;
-            self.total_assets.set(new_total);
-            self.strategy_deployed.set(balance);
-            evm::log(YieldRealized {
-                added_assets: delta,
-                total_assets: new_total,
-            });
+            self.accrue_yield();
             Ok(())
         }
 
