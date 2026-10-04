@@ -129,6 +129,19 @@ const deployedContracts = {
           type: "function",
         },
         {
+          inputs: [],
+          name: "feeRecipient",
+          outputs: [
+            {
+              internalType: "address",
+              name: "",
+              type: "address",
+            },
+          ],
+          stateMutability: "view",
+          type: "function",
+        },
+        {
           inputs: [
             {
               internalType: "address",
@@ -205,6 +218,19 @@ const deployedContracts = {
             },
           ],
           name: "setCommissionRate",
+          outputs: [],
+          stateMutability: "nonpayable",
+          type: "function",
+        },
+        {
+          inputs: [
+            {
+              internalType: "address",
+              name: "new_recipient",
+              type: "address",
+            },
+          ],
+          name: "setFeeRecipient",
           outputs: [],
           stateMutability: "nonpayable",
           type: "function",
@@ -361,6 +387,25 @@ const deployedContracts = {
           name: "setStrategy",
           outputs: [],
           stateMutability: "nonpayable",
+          type: "function",
+        },
+        {
+          inputs: [
+            {
+              internalType: "address",
+              name: "account",
+              type: "address",
+            },
+          ],
+          name: "sharesOf",
+          outputs: [
+            {
+              internalType: "uint256",
+              name: "",
+              type: "uint256",
+            },
+          ],
+          stateMutability: "view",
           type: "function",
         },
         {
@@ -701,6 +746,19 @@ const deployedContracts = {
           type: "function",
         },
         {
+          inputs: [],
+          name: "feeRecipient",
+          outputs: [
+            {
+              internalType: "address",
+              name: "",
+              type: "address",
+            },
+          ],
+          stateMutability: "view",
+          type: "function",
+        },
+        {
           inputs: [
             {
               internalType: "address",
@@ -777,6 +835,19 @@ const deployedContracts = {
             },
           ],
           name: "setCommissionRate",
+          outputs: [],
+          stateMutability: "nonpayable",
+          type: "function",
+        },
+        {
+          inputs: [
+            {
+              internalType: "address",
+              name: "new_recipient",
+              type: "address",
+            },
+          ],
+          name: "setFeeRecipient",
           outputs: [],
           stateMutability: "nonpayable",
           type: "function",
@@ -933,6 +1004,25 @@ const deployedContracts = {
           name: "setStrategy",
           outputs: [],
           stateMutability: "nonpayable",
+          type: "function",
+        },
+        {
+          inputs: [
+            {
+              internalType: "address",
+              name: "account",
+              type: "address",
+            },
+          ],
+          name: "sharesOf",
+          outputs: [
+            {
+              internalType: "uint256",
+              name: "",
+              type: "uint256",
+            },
+          ],
+          stateMutability: "view",
           type: "function",
         },
         {

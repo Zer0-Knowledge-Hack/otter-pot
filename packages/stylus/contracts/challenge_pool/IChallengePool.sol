@@ -1,6 +1,6 @@
 // SPDX-License-Identifier: MIT
 // Solidity interface for ChallengePool (Arbitrum Stylus / Rust)
-// Manually derived from src/lib.rs — kept in sync with SDD §6 & §7.
+// Manually derived from src/lib.rs.
 //
 // Run `cargo stylus export-abi` from the WSL environment (wasm32 target)
 // to regenerate this interface automatically.
@@ -8,7 +8,7 @@ pragma solidity ^0.8.24;
 
 interface IChallengePool {
 
-    // ── Events ────────────────────────────────────────────────────────────────
+    // ── Events ────
 
     event ChallengeCreated(
         uint256 indexed challengeId,
@@ -57,11 +57,11 @@ interface IChallengePool {
         uint256 indexed newRate
     );
 
-    // ── Admin / Initialization ────────────────────────────────────────────────
+    // ── Admin / Initialization ───────────────────
 
     /// @notice One-shot initializer. Sets owner = msg.sender, USDC and vault.
     ///         Must be called immediately after deployment.
-    /// @param  treasuryVault       TreasuryVault contract address (SDD §7).
+    /// @param  treasuryVault       TreasuryVault contract address.
     /// @param  usdc                USDC (ERC-20) address approved by participants.
     /// @param  baseCommissionRate  Commission rate in basis points (e.g. 500 = 5 %).
     function init(
@@ -71,7 +71,7 @@ interface IChallengePool {
     ) external;
 
     /// @notice Add an authorized operator. Owner-only.
-    /// @dev    Operator is the Cloudflare Worker account (SDD §9).
+    /// @dev    Operator is the Cloudflare Worker account.
     function addOperator(address operator) external;
 
     /// @notice Remove an authorized operator. Owner-only.
@@ -82,7 +82,7 @@ interface IChallengePool {
     /// @param  rateBps  Basis points (100 bps = 1 %).
     function setCommissionRate(uint256 rateBps) external;
 
-    // ── Challenge Lifecycle ───────────────────────────────────────────────────
+    // ── Challenge Lifecycle ───
 
     /// @notice Create a new challenge in state Abierto.
     /// @param  requiredDeposit  Exact USDC (6 decimals) each participant must deposit.
@@ -104,11 +104,11 @@ interface IChallengePool {
     /// @notice Relay a consensus winner and resolve the challenge. Operator-only.
     /// @dev    Transitions Bloqueado → Resuelto, redeems vault shares, applies
     ///         commission on the recovered total and pays USDC to `winner`.
-    ///         Commission and yield are calculated by the contract (SDD §8.2).
+    ///         Commission and yield are calculated by the contract.
     function confirmResult(uint256 challengeId, address winner) external;
 
     /// @notice Refund participants after deadline without consensus.
-    /// @dev    Permissionless once deadline has elapsed. No commission (SDD §8.3).
+    /// @dev    Permissionless once deadline has elapsed. No commission.
     ///         Redeems the vault and stores a proportional per-participant refund.
     function refund(uint256 challengeId) external;
 
@@ -116,7 +116,7 @@ interface IChallengePool {
     /// @dev    Only after the challenge was refunded and only once per participant.
     function claimRefund(uint256 challengeId) external;
 
-    // ── View ─────────────────────────────────────────────────────────────────
+    // ── View ─────
 
     /// @notice Returns the current status byte of a challenge.
     ///         0 = Abierto, 1 = Bloqueado, 2 = Resuelto, 3 = Reembolsado.

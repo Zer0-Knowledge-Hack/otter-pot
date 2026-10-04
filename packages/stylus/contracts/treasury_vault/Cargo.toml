@@ -7,11 +7,15 @@ edition = "2021"
 crate-type = ["lib", "cdylib"]
 
 [dependencies]
-alloy-primitives = "0.8"
+alloy-primitives = { version = "0.8", features = ["tiny-keccak"] }
 alloy-sol-types  = "0.8"
 mini-alloc       = "0.4.2"
 stylus-sdk       = "0.8"
 hex              = "0.4.3"
+tiny-keccak      = { version = "2.0", features = ["keccak"] }
+
+[build-dependencies]
+alloy-primitives = { version = "0.8", features = ["tiny-keccak"] }
 
 [features]
 export-abi = ["stylus-sdk/export-abi"]

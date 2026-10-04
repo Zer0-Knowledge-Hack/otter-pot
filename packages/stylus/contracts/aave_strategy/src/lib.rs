@@ -13,8 +13,8 @@ pub mod contract {
         storage::{StorageAddress, StorageBool},
     };
 
-    // ── Interfaces externas ───────────────────────────────────────────────────
-    // Aave V3 Pool (Arbitrum Sepolia) y ERC-20 (USDC/aUSDC).
+    // ── External Interfaces ──
+    // Aave V3 Pool (Arbitrum Sepolia) and ERC-20 (USDC/aUSDC).
     sol! {
         interface IPool {
             function supply(address asset, uint256 amount, address onBehalfOf, uint16 referralCode) external;
@@ -28,7 +28,7 @@ pub mod contract {
         }
     }
 
-    // ── Eventos ────────────────────────────────────────────────────────────────
+    // ── Events ──
 
     sol! {
         event StrategyInitialized(address indexed owner, address indexed pool, address indexed usdc, address atoken);
@@ -37,21 +37,21 @@ pub mod contract {
         event Withdrawn(uint256 amount, address indexed to);
     }
 
-    // ── Almacenamiento ─────────────────────────────────────────────────────────
+    // ── Storage ──
 
     #[storage]
     #[entrypoint]
     pub struct AaveStrategy {
         pub initialized: StorageBool,
-        /// Owner del adaptador (cuenta administradora del equipo).
+        /// Adapter owner (team admin account).
         pub owner: StorageAddress,
-        /// Único contrato autorizado para depositar/retirar.
+        /// Only contract authorized to deposit/withdraw.
         pub vault: StorageAddress,
-        /// Aave V3 Pool (Arbitrum Sepolia: 0xBfC91D59fAA134A4ED45f7B584cAf96D7792Eff).
+        /// Aave V3 Pool (Arbitrum Sepolia).
         pub pool: StorageAddress,
-        /// Activo subyacente (USDC).
+        /// Underlying asset (USDC).
         pub usdc: StorageAddress,
-        /// aToken de USDC (aUSDC) que representa la posición.
+        /// USDC aToken (aUSDC) representing the position.
         pub atoken: StorageAddress,
     }
 
@@ -80,11 +80,11 @@ pub mod contract {
         }
     }
 
-    // ── Interfaz pública ──────────────────────────────────────────────────────
+    // ── Public Interface ──
 
     #[public]
     impl AaveStrategy {
-        /// Inicializador de una sola vez. El llamador pasa a ser el owner.
+        /// One-shot initializer. Caller becomes owner.
         /// `pool` y `usdc` son las direcciones de Aave V3 y del USDC; `atoken`
         /// es el aUSDC correspondiente (Arbitrum Sepolia: 0x460b97BD498E1157530AEb3086301d5225b91216).
         pub fn init(
@@ -113,7 +113,7 @@ pub mod contract {
             Ok(())
         }
 
-        /// Autoriza al vault a depositar/retirar. Solo owner.
+        /// Authorizes vault to deposit/withdraw. Admin only.
         pub fn set_vault(&mut self, vault: Address) -> Result<(), Vec<u8>> {
             self.require_owner()?;
             if vault == Address::ZERO {
@@ -124,7 +124,7 @@ pub mod contract {
             Ok(())
         }
 
-        /// Deposita USDC en Aave V3 en nombre del adaptador. Solo vault.
+        /// Deposits USDC into Aave V3 on behalf of adapter. Vault only.
         pub fn deposit(&mut self, amount: U256) -> Result<(), Vec<u8>> {
             self.require_vault()?;
             if amount.is_zero() {
@@ -134,7 +134,7 @@ pub mod contract {
             let usdc = self.usdc.get();
             let pool = self.pool.get();
 
-            // 1) Recibir USDC del vault.
+            // 1) Receive USDC from vault.
             let data = IERC20::transferFromCall {
                 from: msg::sender(),
                 to: me,
@@ -143,12 +143,12 @@ pub mod contract {
             .abi_encode();
             call::call(&mut *self, usdc, &data).map_err(|_| b"transferFrom_failed".to_vec())?;
 
-            // Verificación robusta del ingreso.
+            // Verify transfer.
             if self.token_balance(usdc, me) < amount {
                 return Err(b"usdc_not_transferred".to_vec());
             }
 
-            // 2) Aprobar y suplir al Pool.
+            // 2) Approve and supply to Pool.
             let approve = IERC20::approveCall {
                 spender: pool,
                 amount,
@@ -165,7 +165,7 @@ pub mod contract {
             .abi_encode();
             call::call(&mut *self, pool, &supply).map_err(|_| b"supply_failed".to_vec())?;
 
-            // 3) Verificar que la posición aUSDC creció.
+            // 3) Verify aUSDC position grew.
             let after = self.token_balance(self.atoken.get(), me);
             if after < amount {
                 return Err(b"atoken_not_credited".to_vec());
@@ -178,7 +178,7 @@ pub mod contract {
             Ok(())
         }
 
-        /// Retira USDC de Aave V3 y lo devuelve al vault. Solo vault.
+        /// Withdraws USDC from Aave V3 to vault. Vault only.
         pub fn withdraw(&mut self, amount: U256) -> Result<U256, Vec<u8>> {
             self.require_vault()?;
             if amount.is_zero() {
@@ -200,7 +200,7 @@ pub mod contract {
                 return Err(b"no_assets_withdrawn".to_vec());
             }
 
-            // El USDC quedó en el adaptador: transferirlo al vault.
+            // Transfer USDC from adapter to vault.
             let transfer = IERC20::transferCall {
                 to: msg::sender(),
                 amount: received,
@@ -215,7 +215,7 @@ pub mod contract {
             Ok(received)
         }
 
-        /// Valor de la posición en aUSDC (1:1 con USDC). View.
+        /// Position value in aUSDC (1:1 with USDC). View.
         pub fn balance_of(&self) -> U256 {
             self.token_balance(self.atoken.get(), contract::address())
         }
@@ -225,7 +225,7 @@ pub mod contract {
             self.balance_of()
         }
 
-        /// Retorna la dirección del vault autorizado.
+        /// Returns authorized vault address.
         pub fn vault(&self) -> Address {
             self.vault.get()
         }

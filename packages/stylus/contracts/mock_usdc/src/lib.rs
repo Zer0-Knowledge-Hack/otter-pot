@@ -1,6 +1,5 @@
-// Mock ERC-20 (USDC, 6 decimals) para el devnode local.
-// No es el USDC real (0xaf88…e5831) — en el Nitro devnode ese contrato no existe.
-// Existe SOLO para pruebas locales: mintea a voluntad para fondear participantes.
+// Mock ERC-20 (USDC, 6 decimals) for local devnode.
+// Only for local testing.
 #![cfg_attr(all(target_arch = "wasm32", not(feature = "export-abi")), no_main)]
 
 #[cfg(target_arch = "wasm32")]
@@ -63,7 +62,7 @@ pub mod contract {
 
     #[public]
     impl MockUsdc {
-        /// Inicializador de una sola vez.
+        /// One-shot initializer.
         pub fn init(
             &mut self,
             name: String,
@@ -82,7 +81,7 @@ pub mod contract {
             Ok(())
         }
 
-        // ── ERC-20 ──────────────────────────────────────────────────────────
+        // ── ERC-20 ──
 
         pub fn name(&self) -> String {
             self.name.get_string()
@@ -170,7 +169,7 @@ pub mod contract {
             Ok(true)
         }
 
-        // ── Mock helpers ────────────────────────────────────────────────────
+        // ── Mock helpers ──
 
         /// Mintea `amount` al contrato llamador. Solo para pruebas.
         pub fn mint(&mut self, to: Address, amount: U256) -> Result<bool, Vec<u8>> {

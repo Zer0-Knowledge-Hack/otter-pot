@@ -1725,6 +1725,7 @@ dependencies = [
  "hex",
  "mini-alloc 0.4.2",
  "stylus-sdk",
+ "tiny-keccak",
 ]
 
 [[package]]

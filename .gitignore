@@ -109,3 +109,4 @@ docs/backend-plan.md
 .atl/
 # Build Worker
 **/build/
+.codegraph/
