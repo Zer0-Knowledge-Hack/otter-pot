@@ -1,12 +1,15 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { InMemoryConfirmationStore } from "../src/confirmations";
+import { getChallengeStatus, InMemoryConfirmationStore } from "../src/confirmations";
 import { handleConfirmar, handleDepositar, handleHistorial, handleReembolso } from "../src/telegram/retos";
 import type { RetoRegistrado, RetosDeps } from "../src/telegram/retos";
 import { InMemoryStore, keys, writeJson } from "../src/telegram/store";
 import { saveConfig, DEFAULT_CONFIG } from "../src/telegram/config";
 import type { TelegramTransport } from "../src/telegram/api";
-import type { ChainClient } from "../src/telegram/chain";
+import type { ChainClient, OpcionesDeEscritura } from "../src/telegram/chain";
+import { EnvioFallidoError, RetoNoResueltoError, TransaccionRevertidaError } from "../src/telegram/errores";
 import type { Address, Hex } from "viem";
+
+const HASH_TX = "0xabc0000000000000000000000000000000000000000000000000000000000000" as Hex;
 
 class TransporteFalso implements TelegramTransport {
   readonly llamadas: { method: string; payload: Record<string, unknown> }[] = [];
@@ -31,12 +34,20 @@ class CadenaFalsa implements ChainClient {
   readonly escrituras: { fn: string; args: readonly unknown[] }[] = [];
   poolAddress = "0x3333333333333333333333333333333333333333" as Address;
 
-  writer = {
-    writeContract: async (call: { functionName: string; args: readonly unknown[] }): Promise<Hex> => {
-      this.escrituras.push({ fn: call.functionName, args: call.args });
-      return "0xabc" as Hex;
-    },
-  };
+  /** Si se define, la próxima resolución lanza esto (una sola vez) tras transmitir. */
+  errorAlConfirmar: Error | null = null;
+  /** Si es true, el error ocurre antes de transmitir: nunca hay hash. */
+  fallaAntesDeEnviar = false;
+
+  async confirmarResultado(challengeId: bigint, ganador: Address, opciones?: OpcionesDeEscritura): Promise<Hex> {
+    this.escrituras.push({ fn: "confirmResult", args: [challengeId, ganador] });
+    const error = this.errorAlConfirmar;
+    this.errorAlConfirmar = null;
+    if (error && this.fallaAntesDeEnviar) throw error;
+    await opciones?.alEnviar?.(HASH_TX);
+    if (error) throw error;
+    return HASH_TX;
+  }
 
   async crearReto(): Promise<{ challengeId: bigint; txHash: Hex }> {
     return { challengeId: 0n, txHash: "0xdef" as Hex };
@@ -137,6 +148,101 @@ describe("/confirmar", () => {
 
     expect(chain.escrituras).toHaveLength(1);
     expect(transport.ultimo).toContain("ya se resolvió");
+  });
+});
+
+describe("/confirmar: recibo verificado y ciclo de vida", () => {
+  let transport: TransporteFalso;
+  let store: InMemoryStore;
+  let chain: CadenaFalsa;
+  let confirmations: InMemoryConfirmationStore;
+  let deps: RetosDeps;
+
+  const votarHastaConsenso = async (): Promise<void> => {
+    await handleConfirmar(deps, CHAT, ANA.userId, ["0", "@carla"], false);
+    await handleConfirmar(deps, CHAT, BETO.userId, ["0", "@carla"], false);
+  };
+  const historialDeCarla = async (): Promise<unknown> =>
+    store.get(keys.userHistory(CARLA.userId));
+
+  beforeEach(async () => {
+    transport = new TransporteFalso();
+    store = new InMemoryStore();
+    chain = new CadenaFalsa();
+    confirmations = new InMemoryConfirmationStore();
+    deps = { transport, store, chain, confirmations };
+    await writeJson(store, keys.challenge(CHAT, "0"), RETO);
+  });
+
+  it("exito: queda confirmada, se anuncia con el hash y se escribe el historial", async () => {
+    await votarHastaConsenso();
+
+    expect((await getChallengeStatus(confirmations, "0")).resolutionStatus).toBe("confirmada");
+    expect(transport.ultimo).toContain("resuelto");
+    expect(transport.ultimo).toContain(HASH_TX);
+    expect(await historialDeCarla()).not.toBeNull();
+  });
+
+  it("recibo reverted: avisa que se revirtio, queda fallida, libera el candado y no anuncia ni escribe historial", async () => {
+    chain.errorAlConfirmar = new TransaccionRevertidaError("confirmResult", HASH_TX);
+    await votarHastaConsenso();
+
+    expect(transport.ultimo).toMatch(/revirti/i);
+    expect(transport.ultimo).toContain("volver a confirmar");
+    expect(transport.todo).not.toContain("resuelto</b>");
+    const estado = await confirmations.get("0");
+    expect(estado?.resolutionStatus).toBe("fallida");
+    expect(estado?.consensusTriggeredFor).toBeNull();
+    expect(await historialDeCarla()).toBeNull();
+  });
+
+  it("recibo success pero reto no Resuelto: mensaje propio, fallida y sin anuncio", async () => {
+    chain.errorAlConfirmar = new RetoNoResueltoError(0n, 1, HASH_TX);
+    await votarHastaConsenso();
+
+    expect(transport.ultimo).toMatch(/no marca el reto como resuelto/i);
+    expect(transport.ultimo).toContain("volver a confirmar");
+    expect((await confirmations.get("0"))?.resolutionStatus).toBe("fallida");
+    expect(await historialDeCarla()).toBeNull();
+  });
+
+  it("falla antes de transmitir: avisa que no pudo enviar y libera el candado", async () => {
+    chain.errorAlConfirmar = new EnvioFallidoError("confirmResult", new Error("rpc caido"));
+    chain.fallaAntesDeEnviar = true;
+    await votarHastaConsenso();
+
+    expect(transport.ultimo).toContain("No pude enviar la transacción");
+    expect((await confirmations.get("0"))?.consensusTriggeredFor).toBeNull();
+  });
+
+  it("tras fallar, otro /confirmar reintenta y esta vez resuelve", async () => {
+    chain.errorAlConfirmar = new EnvioFallidoError("confirmResult", new Error("rpc caido"));
+    await votarHastaConsenso();
+    expect(chain.escrituras).toHaveLength(1);
+
+    await handleConfirmar(deps, CHAT, BETO.userId, ["0", "@carla"], false);
+
+    expect(chain.escrituras).toHaveLength(2);
+    expect((await confirmations.get("0"))?.resolutionStatus).toBe("confirmada");
+    expect(transport.ultimo).toContain("resuelto");
+  });
+
+  it("con la tx en vuelo (enviada) no se manda otra y se avisa que sigue en curso", async () => {
+    await handleConfirmar(deps, CHAT, ANA.userId, ["0", "@carla"], false);
+    let estadoEnVuelo: string | undefined;
+    chain.confirmarResultado = async (_id, _ganador, opciones): Promise<Hex> => {
+      await opciones?.alEnviar?.(HASH_TX);
+      // El recibo todavía no llegó: otro /confirmar entra mientras tanto.
+      await handleConfirmar(deps, CHAT, CARLA.userId, ["0", "@carla"], false);
+      estadoEnVuelo = (await getChallengeStatus(confirmations, "0")).resolutionStatus;
+      return HASH_TX;
+    };
+
+    await handleConfirmar(deps, CHAT, BETO.userId, ["0", "@carla"], false);
+
+    expect(estadoEnVuelo).toBe("enviada");
+    expect(transport.todo).toContain("en curso");
+    expect(chain.escrituras).toHaveLength(0);
   });
 });
 

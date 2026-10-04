@@ -63,11 +63,11 @@ Redeeming shares held by another account reverts with `insufficient_shares`; `co
 
 - **Concurrency.** Five simultaneous votes from different wallets produce exactly five votes and one consensus trigger.
 - **Persistence.** A new store instance reads the state written by the previous one.
-- **Retry.** A failed transaction moves the challenge to `failed`; the next attempt submits once and reaches `confirmed`.
+- **Retry.** A failed transaction moves the challenge to `fallida`; the next attempt submits once and reaches `confirmada`.
 - **Idempotency.** Two identical `/confirmar` commands never produce two transactions; a repeated `update_id` is ignored.
-- **Receipts.** A reverted receipt makes the bot report failure and leaves the state `failed`; a successful receipt is followed by a `challengeStatus` read (Resuelto) before the announcement.
-- **Configuration.** `configDesdeEnv` fails with a specific message for each missing or malformed variable; `wrangler.toml` contains no contract addresses.
-- **Nonces.** Two simultaneous resolutions of different challenges use different nonces and both confirm.
+- **Receipts.** A reverted receipt makes the bot report failure and leaves the state `fallida` and releases the consensus lock; a successful receipt is followed by a `challengeStatus` read (Resuelto) before the announcement.
+- **Configuration.** `configDesdeEnv` fails with a specific message for each missing or malformed variable; `wrangler.toml` contains no contract addresses. The operator key (`OPERATOR_PRIVATE_KEY`) and the RPC URL (`CHAIN_RPC_URL`) are set with `wrangler secret put`.
+- **Nonces.** Two simultaneous resolutions of different challenges use different nonces and both confirm. Serialization is an in-process queue per operator account, so it is best effort within one isolate; cross-isolate nonce collisions are out of scope.
 - **Commands.** Router tests cover `/cancelar` permissions (creator allowed, other participant denied, group admin allowed), unknown or already locked challenges, and contract reverts translated to readable messages. `/depositar` replies with a `url` button, never `web_app`.
 - The ABI in the repository matches the output of `cargo stylus export-abi`.
 

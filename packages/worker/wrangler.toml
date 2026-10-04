@@ -2,6 +2,7 @@ name = "otter-pot-worker"
 main = "src/index.ts"
 compatibility_date = "2025-08-01"
 compatibility_flags = ["nodejs_compat"]
+keep_vars = true
 
 # KV: estado del bot (config por grupo, wallets, armados, historial).
 # Sin esto el estado vive en memoria y se pierde entre isolates de Workers.
@@ -9,24 +10,20 @@ compatibility_flags = ["nodejs_compat"]
 binding = "BOT_KV"
 id = "4d534dc1410c4776b80a5f779d749b5a"
 
-# Configuración de la cadena. Arc testnet (Circle) es el destino actual: los valores
-# salen de packages/arc/deployments/arc-testnet.json, que es el registro canónico.
-# Nada de esto es secreto — son direcciones públicas y un RPC público.
+# Configuración no secreta. Las direcciones desplegadas NO viven en este archivo:
+# CHALLENGE_POOL_ADDRESS y USDC_ADDRESS se cargan en el dashboard de Cloudflare
+# (Settings > Variables) o con `wrangler secret put`; en local, en `.dev.vars`.
+# `keep_vars = true` (arriba, a nivel raíz) hace que `wrangler deploy` conserve las
+# variables definidas en el dashboard en vez de borrarlas.
 #
-# Para volver a Arbitrum Sepolia o al Nitro local, cambiar las cuatro juntas:
-# CHAIN_ID y CHAIN_RPC_URL tienen que ser de la misma red o la firma se rechaza
-# con «invalid chain id for signer», y el pool y el token viven en una sola cadena.
+# CHAIN_ID es el de Arbitrum Sepolia. Tiene que coincidir con la red de
+# CHAIN_RPC_URL o la firma se rechaza con «invalid chain id for signer».
 [vars]
 ENVIRONMENT = "development"
-CHAIN_ID = "5042002"
-CHAIN_RPC_URL = "https://rpc.testnet.arc.io"
-CHALLENGE_POOL_ADDRESS = "0x3953ecD3f1797FD18b22a151fEF20C3f5Ae0aD0B"
-# USDC es un contrato de sistema presente en el génesis de Arc. Su interfaz ERC-20
-# —la que usa el pozo— tiene 6 decimales; el worker igual los lee del token.
-USDC_ADDRESS = "0x3600000000000000000000000000000000000000"
+CHAIN_ID = "421614"
 
-# Secretos (NUNCA en este archivo, ver AGENTS.md):
+# Secretos y valores por entorno (NUNCA en este archivo, ver AGENTS.md):
 #   wrangler secret put TELEGRAM_BOT_TOKEN
 #   wrangler secret put TELEGRAM_WEBHOOK_SECRET
 #   wrangler secret put OPERATOR_PRIVATE_KEY
-#   wrangler secret put ARBITRUM_RPC_URL
+#   wrangler secret put CHAIN_RPC_URL

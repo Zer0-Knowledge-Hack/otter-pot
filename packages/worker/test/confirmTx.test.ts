@@ -7,7 +7,6 @@ import {
   buildConfirmResultCall,
   CHALLENGE_POOL_ABI,
   CONFIRM_RESULT_SELECTOR,
-  createOperatorWriterFromEnv,
 } from "../src/confirmTx";
 import type { ConfirmResultCall, ConfirmResultWriter } from "../src/confirmTx";
 
@@ -255,32 +254,3 @@ describe("W3.1 — construcción de la llamada a confirmResult (capa pura, sin r
   });
 });
 
-describe("W3.1 — capa de envío: la clave operadora sale de env, nunca del código", () => {
-  it("lanza si falta OPERATOR_PRIVATE_KEY", () => {
-    expect(() => createOperatorWriterFromEnv({ ARBITRUM_RPC_URL: "https://rpc.example" })).toThrow(
-      /falta el secret OPERATOR_PRIVATE_KEY/,
-    );
-  });
-
-  it("lanza si falta ARBITRUM_RPC_URL", () => {
-    expect(() => createOperatorWriterFromEnv({ OPERATOR_PRIVATE_KEY: `0x${"11".repeat(32)}` })).toThrow(
-      /falta el secret ARBITRUM_RPC_URL/,
-    );
-  });
-
-  it("lanza si la clave operadora no tiene formato de clave privada, sin filtrarla en el mensaje", () => {
-    const bogus = "clave-que-no-deberia-aparecer-en-logs";
-    let message = "";
-    try {
-      createOperatorWriterFromEnv({
-        OPERATOR_PRIVATE_KEY: bogus,
-        ARBITRUM_RPC_URL: "https://rpc.example",
-      });
-    } catch (error) {
-      message = error instanceof Error ? error.message : "";
-    }
-
-    expect(message).toContain("formato inválido");
-    expect(message).not.toContain(bogus);
-  });
-});

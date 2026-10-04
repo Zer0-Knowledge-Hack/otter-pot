@@ -15,7 +15,8 @@ import { createPublicClient, createWalletClient, defineChain, http, parseAbi } f
 import { privateKeyToAccount } from "viem/accounts";
 import type { Address, Chain, Hex, PublicClient } from "viem";
 import { arbitrumSepolia } from "viem/chains";
-import type { ConfirmResultWriter } from "../confirmTx";
+import { EnvioFallidoError, RetoNoResueltoError, TransaccionRevertidaError } from "./errores";
+import type { OperacionDeEscritura } from "./errores";
 
 const ERC20_ABI = parseAbi(["function decimals() view returns (uint8)"] as const);
 
@@ -118,6 +119,19 @@ export function resolverCadena(chainId: number | undefined): Chain {
   );
 }
 
+/** El RPC tiene que ser una URL http(s): cualquier otro esquema no sirve de transporte. */
+function validarUrlDeRpc(valor: string): void {
+  let url: URL;
+  try {
+    url = new URL(valor);
+  } catch {
+    throw new Error("cadena: CHAIN_RPC_URL no es una URL válida");
+  }
+  if (url.protocol !== "http:" && url.protocol !== "https:") {
+    throw new Error("cadena: CHAIN_RPC_URL debe usar http o https");
+  }
+}
+
 /**
  * Arma la configuración desde el entorno. Falla con un mensaje concreto por cada
  * variable que falte: un error de configuración tiene que ser obvio, no un
@@ -128,6 +142,7 @@ export function configDesdeEnv(env: ChainEnv, chainOverride?: Chain): ChainConfi
   const chain = chainOverride ?? resolverCadena(CHAIN_ID ? Number(CHAIN_ID) : undefined);
 
   if (!CHAIN_RPC_URL) throw new Error("cadena: falta CHAIN_RPC_URL");
+  validarUrlDeRpc(CHAIN_RPC_URL);
   if (!CHALLENGE_POOL_ADDRESS) throw new Error("cadena: falta CHALLENGE_POOL_ADDRESS");
   if (!ADDRESS_FORMAT.test(CHALLENGE_POOL_ADDRESS)) {
     throw new Error("cadena: CHALLENGE_POOL_ADDRESS no es una dirección de 20 bytes");
@@ -150,14 +165,96 @@ export function configDesdeEnv(env: ChainEnv, chainOverride?: Chain): ChainConfi
   };
 }
 
+/** Tiempo máximo que una escritura espera su recibo antes de liberar la cola. */
+export const TIMEOUT_RECIBO_MS = 60_000;
+
+/** Valor de `challengeStatus` que corresponde a «Resuelto». */
+const ESTADO_RESUELTO = 2;
+
+/**
+ * Cola de promesas en proceso: ejecuta las tareas de a una, en orden de llegada.
+ *
+ * `tail` nunca rechaza (se encadena con `then(noop, noop)`), así que una tarea que
+ * falla no envenena a las siguientes. Sin esto, dos escrituras concurrentes leerían
+ * el mismo nonce y la segunda fallaría con «nonce too low».
+ */
+export class ColaDeTransacciones {
+  private tail: Promise<unknown> = Promise.resolve();
+
+  ejecutar<T>(tarea: () => Promise<T>): Promise<T> {
+    const corrida = this.tail.then(tarea);
+    this.tail = corrida.then(
+      () => undefined,
+      () => undefined,
+    );
+    return corrida;
+  }
+}
+
+/**
+ * Colas por cuenta operadora, a nivel de módulo. `telegram.ts` arma un cliente nuevo
+ * por cada webhook, así que una cola por instancia no serializaría nada. Sigue siendo
+ * de un solo isolate: entre isolates distintos la colisión de nonces es posible y está
+ * documentada como fuera de alcance (best effort).
+ */
+const colasPorOperador = new Map<string, ColaDeTransacciones>();
+
+function colaDelOperador(operador: Address): ColaDeTransacciones {
+  const clave = operador.toLowerCase();
+  const existente = colasPorOperador.get(clave);
+  if (existente) return existente;
+  const nueva = new ColaDeTransacciones();
+  colasPorOperador.set(clave, nueva);
+  return nueva;
+}
+
+/** Escrituras que el cliente sabe firmar, con los argumentos ya tipados. */
+export type PeticionDeEscritura =
+  | { functionName: "createChallenge"; args: readonly [bigint, bigint, readonly Address[]] }
+  | { functionName: "confirmResult"; args: readonly [bigint, Address] }
+  | { functionName: "refund"; args: readonly [bigint] };
+
+export interface ReciboDeTx {
+  status: "success" | "reverted";
+  blockHash: Hex;
+}
+
+/**
+ * Puerto mínimo hacia la cadena. En producción lo implementa viem; en tests, un doble
+ * trivial. Evita inyectar `PublicClient`/`WalletClient` crudos, cuyos genéricos obligan
+ * a castear con `as unknown` en cada doble.
+ */
+export interface PuertoDeCadena {
+  enviar(peticion: PeticionDeEscritura): Promise<Hex>;
+  esperarRecibo(hash: Hex, timeoutMs: number): Promise<ReciboDeTx>;
+  leerEstado(challengeId: bigint): Promise<number>;
+  leerDecimales(): Promise<number>;
+  /** Id del reto creado, leído del evento `ChallengeCreated` de esa tx. */
+  idDeRetoCreado(hash: Hex, blockHash: Hex): Promise<bigint | undefined>;
+}
+
+export interface OpcionesDeEscritura {
+  /** Se invoca apenas la tx se transmite (ya hay hash), antes de esperar el recibo. */
+  alEnviar?: (hash: Hex) => Promise<void> | void;
+}
+
 /**
  * Interfaz mínima de lo que el router necesita de la cadena, para poder
  * inyectar un doble en tests sin red ni claves (regla de `AGENTS.md`: sin `any`).
+ *
+ * Toda escritura espera su recibo y lo verifica dentro de un único turno de la cola:
+ * un hash transmitido NO es un éxito.
  */
 export interface ChainClient {
   crearReto(deposito: bigint, deadline: bigint, participantes: Address[]): Promise<{ challengeId: bigint; txHash: Hex }>;
   estadoDeReto(challengeId: bigint): Promise<number>;
   reembolsar(challengeId: bigint): Promise<Hex>;
+  /**
+   * Resuelve el reto con `confirmResult`. Tras el recibo exitoso relee `challengeStatus`
+   * y exige «Resuelto». No valida el ganador contra el consenso: eso es responsabilidad
+   * de `buildAndSendConfirmResult` (`confirmTx.ts`), que es quien debe llamarlo.
+   */
+  confirmarResultado(challengeId: bigint, ganador: Address, opciones?: OpcionesDeEscritura): Promise<Hex>;
   /**
    * Convierte un monto humano («25») a las unidades crudas del token.
    *
@@ -167,93 +264,48 @@ export interface ChainClient {
    * escalaba. Los decimales se leen del token, nunca se asumen.
    */
   escalarUsdc(monto: number): Promise<bigint>;
-  /**
-   * Dirección del pool y emisor firmado, expuestos para que el flujo de
-   * confirmación reuse `buildAndSendConfirmResult` de `confirmTx.ts` — que ya
-   * tiene la guarda que impide enviar un ganador distinto al del consenso.
-   * Duplicar esa validación acá sería crear una segunda fuente de verdad.
-   */
+  /** Dirección del pool, para que el flujo de confirmación arme la llamada validada. */
   readonly poolAddress: Address;
-  readonly writer: ConfirmResultWriter;
 }
 
-export function crearChainClient(config: ChainConfig): ChainClient {
+export interface OpcionesDeCliente {
+  /** Cola de transacciones. Por defecto, la compartida del operador. */
+  cola?: ColaDeTransacciones;
+  /** Puerto de cadena. Por defecto, el adaptador viem. */
+  puerto?: PuertoDeCadena;
+}
+
+/** Adaptador de producción: viem sobre el RPC configurado. */
+function crearPuertoViem(config: ChainConfig): PuertoDeCadena {
   const chain = config.chain;
   const account = privateKeyToAccount(config.operatorPrivateKey);
   const transport = http(config.rpcUrl);
-
   const publicClient: PublicClient = createPublicClient({ chain, transport });
   const walletClient = createWalletClient({ account, chain, transport });
 
-  // Los decimales del token no cambian nunca, así que se leen una sola vez.
-  let decimalesCache: number | null = null;
-
   return {
-    poolAddress: config.poolAddress,
-
-    async escalarUsdc(monto) {
-      if (decimalesCache === null) {
-        // La dirección viene por configuración. El contrato Solidity sí expone un
-        // getter `usdc()`, pero el Rust/Stylus no, así que se mantiene la
-        // configuración explícita para que el worker sirva a las dos cadenas.
-        // Los decimales se leen del token, nunca se asumen: en Arc son 6 aunque
-        // la interfaz nativa de la misma moneda sea de 18.
-        decimalesCache = Number(
-          await publicClient.readContract({
-            address: config.usdcAddress,
-            abi: ERC20_ABI,
-            functionName: "decimals",
-          }),
-        );
+    async enviar(peticion) {
+      const base = { address: config.poolAddress, abi: CHALLENGE_POOL_ABI, account, chain } as const;
+      switch (peticion.functionName) {
+        case "createChallenge":
+          return walletClient.writeContract({
+            ...base,
+            functionName: "createChallenge",
+            args: [peticion.args[0], peticion.args[1], [...peticion.args[2]]],
+          });
+        case "confirmResult":
+          return walletClient.writeContract({ ...base, functionName: "confirmResult", args: peticion.args });
+        case "refund":
+          return walletClient.writeContract({ ...base, functionName: "refund", args: peticion.args });
       }
-      return BigInt(monto) * 10n ** BigInt(decimalesCache);
     },
 
-    // El writer que consume `confirmTx.ts`: recibe una llamada YA validada.
-    writer: {
-      async writeContract(call) {
-        return walletClient.writeContract({
-          address: call.address,
-          abi: call.abi,
-          functionName: call.functionName,
-          args: call.args,
-          account,
-          chain,
-        });
-      },
+    async esperarRecibo(hash, timeoutMs) {
+      const recibo = await publicClient.waitForTransactionReceipt({ hash, timeout: timeoutMs });
+      return { status: recibo.status, blockHash: recibo.blockHash };
     },
 
-    async crearReto(deposito, deadline, participantes) {
-      const hash = await walletClient.writeContract({
-        address: config.poolAddress,
-        abi: CHALLENGE_POOL_ABI,
-        functionName: "createChallenge",
-        args: [deposito, deadline, participantes],
-        account,
-        chain,
-      });
-
-      const receipt = await publicClient.waitForTransactionReceipt({ hash });
-
-      // El id sale del evento: una escritura no devuelve su valor de retorno al
-      // llamador externo, así que el `U256` que retorna el Rust no se puede leer.
-      const logs = await publicClient.getContractEvents({
-        address: config.poolAddress,
-        abi: CHALLENGE_POOL_ABI,
-        eventName: "ChallengeCreated",
-        blockHash: receipt.blockHash,
-      });
-
-      const propio = logs.find((l) => l.transactionHash === hash);
-      const challengeId = propio?.args.challengeId;
-      if (challengeId === undefined) {
-        throw new Error("cadena: el reto se creó pero no pude leer su id del evento ChallengeCreated");
-      }
-
-      return { challengeId, txHash: hash };
-    },
-
-    async estadoDeReto(challengeId) {
+    async leerEstado(challengeId) {
       const status = await publicClient.readContract({
         address: config.poolAddress,
         abi: CHALLENGE_POOL_ABI,
@@ -263,14 +315,119 @@ export function crearChainClient(config: ChainConfig): ChainClient {
       return Number(status);
     },
 
-    async reembolsar(challengeId) {
-      return walletClient.writeContract({
+    async leerDecimales() {
+      // La dirección viene por configuración. El contrato Solidity sí expone un
+      // getter `usdc()`, pero el Rust/Stylus no, así que se mantiene la
+      // configuración explícita para que el worker sirva a las dos cadenas.
+      return Number(
+        await publicClient.readContract({
+          address: config.usdcAddress,
+          abi: ERC20_ABI,
+          functionName: "decimals",
+        }),
+      );
+    },
+
+    async idDeRetoCreado(hash, blockHash) {
+      // El id sale del evento: una escritura no devuelve su valor de retorno al
+      // llamador externo, así que el `U256` que retorna el Rust no se puede leer.
+      const logs = await publicClient.getContractEvents({
         address: config.poolAddress,
         abi: CHALLENGE_POOL_ABI,
-        functionName: "refund",
-        args: [challengeId],
-        account,
-        chain,
+        eventName: "ChallengeCreated",
+        blockHash,
+      });
+      return logs.find((l) => l.transactionHash === hash)?.args.challengeId;
+    },
+  };
+}
+
+export function crearChainClient(config: ChainConfig, opciones: OpcionesDeCliente = {}): ChainClient {
+  const puerto = opciones.puerto ?? crearPuertoViem(config);
+  const cola = opciones.cola ?? colaDelOperador(privateKeyToAccount(config.operatorPrivateKey).address);
+
+  // Los decimales del token no cambian nunca, así que se leen una sola vez.
+  let decimalesCache: number | null = null;
+
+  /**
+   * Envía, espera el recibo y exige `success`, todo dentro de un turno de la cola.
+   * Los fallos de transporte se tipan como `EnvioFallidoError`; el revert del recibo
+   * como `TransaccionRevertidaError`. El nonce siguiente se lee recién cuando la tx
+   * anterior ya se minó.
+   */
+  async function escribir(
+    operacion: OperacionDeEscritura,
+    peticion: PeticionDeEscritura,
+    alEnviar?: OpcionesDeEscritura["alEnviar"],
+  ): Promise<{ hash: Hex; recibo: ReciboDeTx }> {
+    let hash: Hex;
+    let recibo: ReciboDeTx;
+    try {
+      hash = await puerto.enviar(peticion);
+      if (alEnviar) await alEnviar(hash);
+      recibo = await puerto.esperarRecibo(hash, TIMEOUT_RECIBO_MS);
+    } catch (error) {
+      throw new EnvioFallidoError(operacion, error);
+    }
+    if (recibo.status !== "success") throw new TransaccionRevertidaError(operacion, hash);
+    return { hash, recibo };
+  }
+
+  return {
+    poolAddress: config.poolAddress,
+
+    async escalarUsdc(monto) {
+      if (decimalesCache === null) decimalesCache = await puerto.leerDecimales();
+      return BigInt(monto) * 10n ** BigInt(decimalesCache);
+    },
+
+    confirmarResultado(challengeId, ganador, opcionesDeEscritura) {
+      return cola.ejecutar(async () => {
+        const { hash } = await escribir(
+          "confirmResult",
+          { functionName: "confirmResult", args: [challengeId, ganador] },
+          opcionesDeEscritura?.alEnviar,
+        );
+
+        let estado: number;
+        try {
+          estado = await puerto.leerEstado(challengeId);
+        } catch (error) {
+          throw new EnvioFallidoError("confirmResult", error);
+        }
+        if (estado !== ESTADO_RESUELTO) throw new RetoNoResueltoError(challengeId, estado, hash);
+        return hash;
+      });
+    },
+
+    crearReto(deposito, deadline, participantes) {
+      return cola.ejecutar(async () => {
+        const { hash, recibo } = await escribir("createChallenge", {
+          functionName: "createChallenge",
+          args: [deposito, deadline, participantes],
+        });
+
+        let challengeId: bigint | undefined;
+        try {
+          challengeId = await puerto.idDeRetoCreado(hash, recibo.blockHash);
+        } catch (error) {
+          throw new EnvioFallidoError("createChallenge", error);
+        }
+        if (challengeId === undefined) {
+          throw new Error("cadena: el reto se creó pero no pude leer su id del evento ChallengeCreated");
+        }
+        return { challengeId, txHash: hash };
+      });
+    },
+
+    estadoDeReto(challengeId) {
+      return puerto.leerEstado(challengeId);
+    },
+
+    reembolsar(challengeId) {
+      return cola.ejecutar(async () => {
+        const { hash } = await escribir("refund", { functionName: "refund", args: [challengeId] });
+        return hash;
       });
     },
   };

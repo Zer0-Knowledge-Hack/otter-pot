@@ -28,10 +28,8 @@ export interface Env {
   TELEGRAM_WEBHOOK_SECRET?: string;
   /** Token del bot, de @BotFather. Sin esto el bot no puede contestar nada. */
   TELEGRAM_BOT_TOKEN?: string;
-  /** Clave de la cuenta operadora que firma `confirmResult` — W3.1, ver ./confirmTx.ts. */
+  /** Clave de la cuenta operadora que firma las transacciones (secret). */
   OPERATOR_PRIVATE_KEY?: string;
-  /** RPC de Arbitrum Sepolia (Alchemy) usado por el writer operador — W3.1. */
-  ARBITRUM_RPC_URL?: string;
   /** RPC de la cadena donde vive el pool. En local: el Nitro DevNode. */
   CHAIN_RPC_URL?: string;
   /** URL pública de la Mini App (página de depósito). */
