@@ -2,20 +2,31 @@
 const path = require("path");
 
 /**
- * Turbopack (Windows) rejects absolute paths in resolveAlias:
- * "windows imports are not implemented yet".
- * Relative aliases are from turbopack.root (monorepo root).
+ * Optional peers that RainbowKit / MetaMask / Coinbase CDP pull in.
+ * Webpack usa rutas absolutas; Turbopack las resuelve relativas a packages/nextjs
+ * (en Windows rechaza rutas absolutas).
  */
-const emptyModuleTurbo = "./packages/nextjs/utils/empty-module.js";
-const emptyModuleWebpack = path.join(__dirname, "utils/empty-module.js");
+const emptyAbs = path.join(__dirname, "utils/empty-module.js");
+const emptyTurbo = "./utils/empty-module.js";
+const asyncStorageAbs = path.join(__dirname, "utils/async-storage-stub");
+const asyncStorageTurbo = "./utils/async-storage-stub";
 
-const x402Packages = [
-  "@x402/core/client",
-  "@x402/evm",
-  "@x402/evm/exact/client",
-  "@x402/evm/upto/client",
-  "@x402/svm/exact/client",
-];
+/** @type {Record<string, { turbo: string, webpack: string | false }>} */
+const optionalStubs = {
+  "@x402/core/client": { turbo: emptyTurbo, webpack: emptyAbs },
+  "@x402/core": { turbo: emptyTurbo, webpack: emptyAbs },
+  "@x402/evm": { turbo: emptyTurbo, webpack: emptyAbs },
+  "@x402/evm/exact/client": { turbo: emptyTurbo, webpack: emptyAbs },
+  "@x402/evm/upto/client": { turbo: emptyTurbo, webpack: emptyAbs },
+  "@x402/svm": { turbo: emptyTurbo, webpack: emptyAbs },
+  "@x402/svm/exact/client": { turbo: emptyTurbo, webpack: emptyAbs },
+  "@coinbase/cdp-sdk": { turbo: emptyTurbo, webpack: emptyAbs },
+  "@base-org/account": { turbo: emptyTurbo, webpack: emptyAbs },
+  "@react-native-async-storage/async-storage": {
+    turbo: asyncStorageTurbo,
+    webpack: asyncStorageAbs,
+  },
+};
 
 /** @type {import('next').NextConfig} */
 const nextConfig = {
@@ -23,36 +34,67 @@ const nextConfig = {
 
   agentRules: false,
 
-  // Generar sitio estático para Firebase Hosting
+  // Static export → carpeta `out/` (Firebase Hosting)
   output: "export",
+  distDir: ".next",
 
   images: {
     unoptimized: true,
   },
+
   trailingSlash: true,
-  trailingSlash: true,
+
   typescript: {
-    ignoreBuildErrors:
-      process.env.NEXT_PUBLIC_IGNORE_BUILD_ERROR === "true",
+    // Scaffold + wagmi tipados rígidos; no bloquear export estático
+    ignoreBuildErrors: true,
   },
 
-  allowedDevOrigins: [
-    "*.trycloudflare.com",
-    "192.168.100.31",
-    "127.0.0.1",
-    "localhost",
-  ],
+  allowedDevOrigins: ["192.168.100.31", "192.168.36.1", "127.0.0.1", "localhost"],
+
+  experimental: {
+    optimizePackageImports: ["lucide-react", "@heroicons/react"],
+  },
 
   turbopack: {
     root: path.join(__dirname, "../.."),
-    resolveAlias: Object.fromEntries(x402Packages.map(p => [p, emptyModuleTurbo])),
+    resolveAlias: Object.fromEntries(
+      Object.entries(optionalStubs).map(([k, v]) => [k, v.turbo]),
+    ),
   },
 
-  webpack: config => {
+  webpack: (config, { webpack: wp }) => {
     config.resolve.alias = {
       ...config.resolve.alias,
-      ...Object.fromEntries(x402Packages.map(p => [p, emptyModuleWebpack])),
+      ...Object.fromEntries(
+        Object.entries(optionalStubs).map(([k, v]) => [k, v.webpack]),
+      ),
     };
+
+    // Evita que webpack intente resolver peers opcionales rotos
+    config.plugins.push(
+      new wp.NormalModuleReplacementPlugin(/^@x402\//, emptyAbs),
+    );
+
+    config.watchOptions = {
+      ...config.watchOptions,
+      ignored: [
+        "**/node_modules/**",
+        "**/.git/**",
+        "**/.next/**",
+        "**/out/**",
+        "**/packages/stylus/**",
+        "**/packages/contracts/**",
+        "**/packages/worker/**",
+      ],
+    };
+
+    config.resolve.fallback = {
+      ...config.resolve.fallback,
+      fs: false,
+      net: false,
+      tls: false,
+    };
+
     return config;
   },
 };

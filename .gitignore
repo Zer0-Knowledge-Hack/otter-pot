@@ -27,10 +27,17 @@ target/
 
 packages/nextjs
 **/out/
-.env.*
-.firebaserc
-firebase.json
-
+packages/nextjs/.env.*
+packages/nextjs/.firebaserc
+packages/nextjs/firebase.json
+packages/nextjs/node_modules
+packages/nextjs/out
+packages/nextjs/.firebase
+packages/nextjs/.husky
+packages/nextjs/.next
+packages/nextjs/database.rules.json
+packages/nextjs/database.siteConfig.seed.json
+packages/nextjs/.env.local.example
 
 
 # Cloudflare Worker

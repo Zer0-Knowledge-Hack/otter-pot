@@ -1,26 +1,28 @@
-import { Sora } from "next/font/google";
-import "@rainbow-me/rainbowkit/styles.css";
 import { Metadata, Viewport } from "next";
 import { ThemeProvider } from "~~/components/ThemeProvider";
+import { ClientProviders } from "~~/components/ClientProviders";
+import { InstallPWA } from "~~/components/otterpot/InstallPWA";
 import { RegisterSW } from "~~/components/otterpot/RegisterSW";
 import { TelegramScript } from "~~/components/otterpot/TelegramScript";
+import { I18nProvider } from "~~/lib/i18n";
 import "~~/styles/globals.css";
 
-const sora = Sora({
-  subsets: ["latin"],
-  variable: "--font-sora",
-  weight: ["400", "500", "600", "700"],
-});
+/**
+ * Sora se carga con un <link> a Google Fonts y no con `next/font/google`: Google
+ * devuelve URLs `/l/font?kit=...&skey=...` que el loader de fuentes de Turbopack
+ * no sabe parsear ("next/font/google queries have exactly one entry").
+ */
+const soraHref = "https://fonts.googleapis.com/css2?family=Sora:wght@400;500;600;700&display=swap";
 
 const baseUrl = process.env.VERCEL_URL
   ? `https://${process.env.VERCEL_URL}`
   : `http://localhost:${process.env.PORT || 3000}`;
 const imageUrl = `${baseUrl}/thumbnail.jpg`;
 
-const title = "OtterPot — El pozo existe antes de que haya un ganador";
+const title = "OtterPot";
 const titleTemplate = "%s | OtterPot";
 const description =
-  "Retos con pozo compartido dentro de Telegram. El dinero queda bloqueado en un contrato en Arbitrum: nadie lo custodia y nadie puede desviarlo.";
+  "Convierte tus metas en retos con recompensas reales. Pozo USDC en Arbitrum + Telegram Mini App.";
 
 export const metadata: Metadata = {
   metadataBase: new URL(baseUrl),
@@ -66,26 +68,22 @@ export const viewport: Viewport = {
   viewportFit: "cover",
 };
 
-/**
- * Layout raíz — deliberadamente sin los providers del scaffold.
- *
- * `ScaffoldEthAppWithProviders` devuelve `null` hasta montar en el cliente, así que
- * cualquier página `"use client"` que cuelgue de él no emite nada en el servidor y
- * queda en blanco si algo falla al hidratar — que es exactamente lo que le pasaba a
- * `/depositar`. Las páginas de OtterPot no necesitan wagmi ni RainbowKit: hablan con
- * la cadena por viem directo (`STACK.md` §1).
- *
- * Los providers se movieron a las rutas heredadas que sí los usan: `/debug` y
- * `/blockexplorer`, cada una con su propio layout.
- */
 export default function RootLayout({ children }: { children: React.ReactNode }) {
   return (
-    <html suppressHydrationWarning>
-      <body className={`${sora.variable} font-sans`} suppressHydrationWarning>
+    <html lang="es" suppressHydrationWarning>
+      <head>
+        <link rel="preconnect" href="https://fonts.googleapis.com" />
+        <link rel="preconnect" href="https://fonts.gstatic.com" crossOrigin="" />
+        <link rel="stylesheet" href={soraHref} />
+      </head>
+      <body className="font-sans" suppressHydrationWarning>
         <ThemeProvider>
-          {children}
-          <RegisterSW />
-          <TelegramScript />
+          <I18nProvider>
+            <ClientProviders>{children}</ClientProviders>
+            <RegisterSW />
+            <InstallPWA />
+            <TelegramScript />
+          </I18nProvider>
         </ThemeProvider>
       </body>
     </html>

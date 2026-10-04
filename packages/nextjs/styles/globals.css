@@ -1,9 +1,12 @@
-@import "tailwindcss";
+/* source(none): sin esto Tailwind escanea todo el monorepo y Turbopack se cuelga. */
+@import "tailwindcss" source(none);
 
 @source "../app";
 @source "../components";
 @source "../utils";
 @source "../services";
+@source "../hooks";
+@source "../icons";
 
 @custom-variant dark (&:where([data-theme=dark], [data-theme=dark] *));
 @custom-variant light (&:where([data-theme=light], [data-theme=light] *));
@@ -18,7 +21,7 @@
   --color-otter-text: var(--otter-text);
   --color-otter-border: var(--otter-border);
   --color-otter-surface: var(--otter-surface);
-  --font-sans: var(--font-sora), "Segoe UI", ui-sans-serif, system-ui, sans-serif;
+  --font-sans: var(--font-sora, "Sora"), "Segoe UI", ui-sans-serif, system-ui, sans-serif;
   --shadow-center: 0 0 12px -2px rgb(0 0 0 / 0.05);
   --animate-pulse-fast: pulse 1s cubic-bezier(0.4, 0, 0.6, 1) infinite;
 }
@@ -115,21 +118,42 @@ body {
 
 [data-theme="light"] {
   --otter-bg: #ffffff;
-  --otter-surface: #f7f8fc;
+  --otter-surface: #f4f6fb;
   --otter-card: #ffffff;
-  --otter-action: #f47434;
-  --otter-chain: #f47434;
-  --otter-success: #2f9e66;
-  --otter-muted: #5c6b8a;
-  --otter-text: #111d43;
-  --otter-border: rgba(17, 29, 67, 0.1);
+  /* Naranja más fuerte en claro — evita cremas (#FEF4E5) ilegibles */
+  --otter-action: #e85a12;
+  --otter-chain: #e85a12;
+  --otter-success: #1f8a55;
+  --otter-muted: #3d4d6b;
+  --otter-text: #0b142e;
+  --otter-border: rgba(11, 20, 46, 0.14);
   --surface: rgba(0, 0, 0, 0.04);
   --bg-border: #ffffff;
-  --round-color: #f47434;
-  --gradient-start: #f47434;
+  --round-color: #e85a12;
+  --gradient-start: #e85a12;
   --gradient-end: #111d43;
-  --border-color: rgba(17, 29, 67, 0.1);
+  --border-color: rgba(11, 20, 46, 0.14);
   color-scheme: light;
+}
+
+[data-theme="light"] .text-amber-100,
+[data-theme="light"] .text-amber-100\/90,
+[data-theme="light"] .text-amber-100\/85,
+[data-theme="light"] .text-amber-200,
+[data-theme="light"] .text-amber-200\/90,
+[data-theme="light"] .text-amber-300,
+[data-theme="light"] .text-amber-400,
+[data-theme="light"] .text-\[\#FEF4E5\],
+[data-theme="light"] .text-\[\#fef4e5\] {
+  color: #c2410c !important; /* naranja fuerte, legible sobre claro */
+}
+
+[data-theme="light"] .text-otter-action {
+  color: #d9480f;
+}
+
+[data-theme="light"] .bg-otter-action {
+  background-color: #e85a12;
 }
 
 @layer base {

@@ -160,7 +160,7 @@ export const Header = () => {
                 lineHeight: "20px",
               }}
             >
-              Arbitrum · ETH Lima 2026
+              Arbitrum · Stylus
             </span>
           </div>
         </Link>

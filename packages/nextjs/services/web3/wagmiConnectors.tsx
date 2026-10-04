@@ -7,12 +7,12 @@ import {
   safeWallet,
   walletConnectWallet,
 } from "@rainbow-me/rainbowkit/wallets";
-// coinbaseWallet omitido: tira @coinbase/cdp-sdk → @x402/* (peer deps opcionales) y rompe el build.
+// coinbaseWallet omitido: peer deps @x402/* rompen el build (ver next.config aliases).
 import { rainbowkitBurnerWallet } from "burner-connector";
 import * as chains from "viem/chains";
 import { arbitrumNitro } from "~~/utils/scaffold-stylus/supportedChains";
-
 import scaffoldConfig from "~~/scaffold.config";
+import { appConfig } from "~~/services/otterpot/config";
 
 const { onlyLocalBurnerWallet, targetNetworks } = scaffoldConfig;
 
@@ -21,36 +21,40 @@ rainbowkitBurnerWallet.rpcUrls = {
 };
 
 const wallets = [
-  ...(!targetNetworks.some(network => network.id !== (arbitrumNitro as chains.Chain).id) || !onlyLocalBurnerWallet
-    ? [rainbowkitBurnerWallet]
-    : []),
-  braveWallet,
   metaMaskWallet,
   walletConnectWallet,
-  ledgerWallet,
   rainbowWallet,
+  braveWallet,
+  ledgerWallet,
   safeWallet,
+  ...(!targetNetworks.some(network => network.id !== (arbitrumNitro as chains.Chain).id) ||
+  !onlyLocalBurnerWallet
+    ? [rainbowkitBurnerWallet]
+    : []),
 ];
 
 /**
- * wagmi connectors for the wagmi context
+ * wagmi connectors — cada usuario conecta SU wallet (no hay wallet fija de app).
+ * WalletConnect Project ID identifica la app Reown, no al usuario.
  */
 export const wagmiConnectors = () => {
-  // Client-only (ClientProviders ya desactiva SSR de Wagmi)
   if (typeof window === "undefined") {
     return [];
   }
 
+  const projectId =
+    appConfig.wallet.walletConnectProjectId || scaffoldConfig.walletConnectProjectId;
+
   return connectorsForWallets(
     [
       {
-        groupName: "Supported Wallets",
+        groupName: "Wallets",
         wallets,
       },
     ],
     {
-      appName: "OtterPot",
-      projectId: scaffoldConfig.walletConnectProjectId,
+      appName: appConfig.wallet.appName || "OtterPot",
+      projectId,
     },
   );
 };
