@@ -16,7 +16,7 @@ import { isGroupChat } from "./types";
 import type { TelegramUpdate } from "./types";
 import { parseCallback } from "./assembly";
 import type { ChainClient } from "./chain";
-import type { ConfirmationStore } from "../confirmations";
+import type { ConsensusGateway } from "../consensus/gateway";
 import {
   handleAbrir,
   handleBotonArmado,
@@ -26,6 +26,7 @@ import {
   handleRetos,
   handleConfirmar,
   handleReembolso,
+  handleReintentar,
   handleHistorial,
   handleDepositar,
 } from "./retos";
@@ -37,8 +38,8 @@ export interface RouterDeps {
   chain?: ChainClient;
   /** URL pública de la Mini App, para el botón de /depositar. */
   miniAppUrl?: string;
-  /** Conteo de consenso (W2.1). Sin esto, `/confirmar` no puede registrar votos. */
-  confirmations?: ConfirmationStore;
+  /** Ledger de consenso y ciclo de vida de la tx (#26). Sin esto, `/confirmar` no puede registrar votos. */
+  consensus?: ConsensusGateway;
 }
 
 interface ParsedCommand {
@@ -69,8 +70,6 @@ const NO_DISPONIBLE_CONTRATO =
   "Todavía no está habilitado: necesita la próxima versión del contrato. Está diseñado y en camino.";
 const NO_DISPONIBLE_MINIAPP =
   "Todavía no está habilitado: necesita la Mini App para que firmes desde tu wallet. Está diseñado y en camino.";
-const NO_DISPONIBLE_PRONTO =
-  "Todavía no está habilitado. Es lo próximo que se implementa.";
 
 const AYUDA_PRIVADO = [
   "🦦 <b>OtterPot</b> — retos con pozo compartido, sin que nadie guarde la plata.",
@@ -95,6 +94,7 @@ const AYUDA_GRUPO = [
   "<code>/retos</code> — retos activos",
   "<code>/estado [id]</code> — pozo, depósitos y confirmaciones",
   "<code>/confirmar [id] @usuario</code> — votar al ganador",
+  "<code>/reintentar [id]</code> — reintentar la resolución si falló",
   "<code>/reembolso [id]</code> — devolver si venció el plazo",
   "<code>/historial [@usuario]</code> — retos jugados y ganados",
   "",
@@ -264,6 +264,10 @@ export async function handleUpdate(update: TelegramUpdate, deps: RouterDeps): Pr
         (message.photo?.length ?? 0) > 0 || (message.reply_to_message?.photo?.length ?? 0) > 0;
       return handleConfirmar(deps, chatId, userId, parsed.args, tieneAdjunto);
     }
+
+    case "reintentar":
+      if (!enGrupo) return responder("Los retos viven en los grupos. Agregame a uno y probá ahí.");
+      return handleReintentar(deps, chatId, userId, parsed.args[0]);
 
     case "reembolso":
       if (!enGrupo) return responder("Los retos viven en los grupos. Agregame a uno y probá ahí.");

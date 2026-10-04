@@ -672,6 +672,31 @@ El relayer es la parte del Worker que cuenta los votos de Telegram y envía `con
 - **Separación de cuentas.** La cuenta operadora (relayer) y la cuenta de administración (Sweeper y vault) son cuentas distintas.
 - **Alcance de la garantía.** El umbral de consenso lo aplica el Worker, no el contrato. Lo que el contrato garantiza es que el ganador sea un participante del reto y que los fondos solo puedan ir al ganador y al `fee_recipient`.
 
+### 9.2 Consenso persistente y ciclo de vida de la transacción de resolución
+
+El conteo de confirmaciones ya no vive en memoria del isolate: cada reto tiene un **Durable Object `ConfirmationStore`** (uno por `challengeId`, respaldado por SQLite) que es el único escritor de su estado. Cada comando se ejecuta como leer, aplicar una transición pura y escribir, de forma serial, así que votos concurrentes no se pisan y exactamente una llamada informa el disparo del consenso. El Worker solo depende de la interfaz `ConsensusGateway`; sin el binding `CONFIRMATION_STORE` cae a una implementación en memoria con un `console.warn` (solo desarrollo).
+
+**Fases.** `collecting → consensus → submitting → submitted → confirmed | failed`, y desde `failed` (o desde un `submitting`/`submitted` con lease vencido) se vuelve a `submitting` con `/reintentar`:
+
+- `collecting`: se reciben votos. El umbral queda fijado por el primer voto y un voto posterior de la misma wallet reemplaza al anterior.
+- `consensus`: el umbral se alcanzó para un ganador. Los votos quedan congelados; un voto tardío no cambia nada.
+- `submitting`: alguien ganó el derecho de envío (`beginSubmit`, un CAS atómico) con un lease de 180 s y un número de intento monótono. A lo sumo hay una tx en vuelo por reto.
+- `submitted`: la tx se difundió y se guardó su `txHash`; el lease se renueva mientras se espera el recibo (tope de 90 s).
+- `confirmed`: el recibo fue exitoso, o la cadena ya mostraba el reto como resuelto. El historial de cada participante se escribe una sola vez, en esta primera confirmación.
+- `failed`: falló el envío, el recibo se revirtió, venció el tiempo, el reto ya estaba reembolsado en la cadena o venció el lease. Guarda un `failureReason`.
+
+**Fencing y recuperación.** Las marcas `markSubmitted`/`markConfirmed`/`markFailed` llevan el número de intento y se rechazan con `stale_attempt` si otro intento tomó el relevo. Si el holder se cae, el lease vence y el siguiente reintento se trata como `failed("lease_expired")` y obtiene un único derecho de envío nuevo. Antes de cada envío se lee `challengeStatus`: Resuelto (2) lleva a `confirmed` sin enviar nada y Reembolsado (3) a `failed("refunded_onchain")`, de modo que reenviar tras un lease vencido no puede liquidar dos veces.
+
+**Camino único de envío.** Toda tx de `confirmResult` pasa por `resolverEnCadena`, que reusa la guarda de `buildConfirmResultCall` (el ganador sale del consenso, nunca de la mención). Dos `/confirmar` simultáneos producen una sola tx y la otra respuesta es «en curso».
+
+**Reintento manual.** `/reintentar <id>` (o `/confirmar` con el reto en `failed`) lo puede ejecutar cualquier participante del reto; un no participante es rechazado y el estado no cambia. No hay reintento automático.
+
+**Idempotencia del webhook.** Cada `update_id` se procesa a lo sumo una vez por chat: un Durable Object `UpdateDedupe` por chat guarda una ventana FIFO de 200 ids y el update se marca antes de enrutarlo. Las redeliveries se reconocen con 200 sin efectos. Si el dedupe falla se procesa igual (falla abierto), porque el CAS de `beginSubmit` ya impide un doble envío on-chain.
+
+**Estado expuesto.** `GET /challenges/:id/status` devuelve, además del conteo, `phase`, `attempt`, `txHash` (cuando hay tx) y `failureReason` (cuando falló).
+
+Fuera de alcance de este módulo (ver DD-08): serialización de nonces de la cuenta operadora y unificación de la configuración de cadena.
+
 ## 10. Especificación funcional — Bot de Telegram y Mini App
 
 **Implementado por:** Julio (bot), Luishiño (Mini App) y Fernando (frontend).

@@ -1,6 +1,8 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { handleUpdate, parseCommand } from "../src/telegram/router";
-import { InMemoryStore } from "../src/telegram/store";
+import { InMemoryConsensusGateway } from "../src/consensus/gateway";
+import { InMemoryStore, keys, writeJson } from "../src/telegram/store";
+import type { RetoRegistrado } from "../src/telegram/retos";
 import type { TelegramTransport } from "../src/telegram/api";
 import type { TelegramUpdate } from "../src/telegram/types";
 
@@ -189,5 +191,61 @@ describe("router — comandos todavía no implementados", () => {
     };
     await handleUpdate(update, { transport, store });
     expect(transport.llamadas.some((c) => c.method === "answerCallbackQuery")).toBe(true);
+  });
+});
+
+describe("router — /reintentar", () => {
+  let transport: TransporteFalso;
+  let store: InMemoryStore;
+
+  const RETO: RetoRegistrado = {
+    challengeId: "0",
+    chatId: CHAT_GRUPO,
+    deposito: 25,
+    participantes: [
+      { userId: 1, nombre: "@ana", wallet: "0x1111111111111111111111111111111111111111" },
+      { userId: 2, nombre: "@beto", wallet: "0x2222222222222222222222222222222222222222" },
+    ],
+    umbral: 2,
+    txHash: "0xdef",
+    createdAt: 0,
+  };
+
+  beforeEach(async () => {
+    transport = new TransporteFalso();
+    store = new InMemoryStore();
+    await writeJson(store, keys.challenge(CHAT_GRUPO, "0"), RETO);
+  });
+
+  it("en grupo enruta /reintentar <id> al handler (quien no participa es rechazado)", async () => {
+    // USER (7) no está en el reto, así que el rechazo prueba que el comando llegó al handler.
+    await handleUpdate(mensaje("/reintentar 0", CHAT_GRUPO, "group"), {
+      transport,
+      store,
+      consensus: new InMemoryConsensusGateway(),
+    });
+    expect(transport.ultimoTexto).toContain("no te incluye");
+  });
+
+  it("tolera el sufijo del bot que Telegram agrega en grupos", async () => {
+    await handleUpdate(mensaje("/reintentar@otterpot_bot 0", CHAT_GRUPO, "group"), {
+      transport,
+      store,
+      consensus: new InMemoryConsensusGateway(),
+    });
+    expect(transport.ultimoTexto).toContain("no te incluye");
+  });
+
+  it("en privado avisa que los retos viven en grupos", async () => {
+    await handleUpdate(mensaje("/reintentar 0", CHAT_PRIVADO, "private"), { transport, store });
+    expect(transport.ultimoTexto).toContain("Los retos viven en los grupos");
+  });
+
+  it("la ayuda del grupo lista /reintentar y la privada no", async () => {
+    await handleUpdate(mensaje("/ayuda", CHAT_GRUPO, "group"), { transport, store });
+    expect(transport.ultimoTexto).toContain("/reintentar");
+
+    await handleUpdate(mensaje("/ayuda", CHAT_PRIVADO, "private"), { transport, store });
+    expect(transport.ultimoTexto).not.toContain("/reintentar");
   });
 });

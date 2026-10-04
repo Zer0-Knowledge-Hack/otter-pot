@@ -36,6 +36,7 @@ export const COMANDOS_GRUPO: BotCommand[] = [
   { command: "estado", description: "Pozo, depósitos y confirmaciones" },
   { command: "depositar", description: "Enlace para poner tu parte" },
   { command: "confirmar", description: "Votar al ganador — /confirmar [id] @usuario" },
+  { command: "reintentar", description: "Reintentar la resolución si falló — /reintentar [id]" },
   { command: "reembolso", description: "Devolver si venció el plazo" },
   { command: "historial", description: "Retos jugados y ganados" },
   { command: "config", description: "Ver la configuración del grupo" },

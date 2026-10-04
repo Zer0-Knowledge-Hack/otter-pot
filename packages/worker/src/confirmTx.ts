@@ -5,7 +5,7 @@
  * hacia una dirección. Por eso está partido en dos capas que no se mezclan:
  *
  *   1. `buildConfirmResultCall` — pura, sin red, sin claves. Lee el estado de consenso
- *      real (`getChallengeStatus`) y solo devuelve los parámetros de la llamada si el
+ *      real (`getStatus` del ledger) y solo devuelve los parámetros de la llamada si el
  *      `expectedWinner` que pasó el caller coincide EXACTAMENTE con el ganador que
  *      calculó el consenso propio. Si no coincide (o si el consenso no se alcanzó, o si
  *      el reto no tiene confirmaciones), lanza ANTES de construir nada — nunca devuelve
@@ -28,8 +28,7 @@ import { createWalletClient, getAddress, http, isAddress, parseAbiItem } from "v
 import { privateKeyToAccount } from "viem/accounts";
 import { arbitrumSepolia } from "viem/chains";
 import type { Abi, Address, Chain, Hex } from "viem";
-import { getChallengeStatus } from "./confirmations";
-import type { ChallengeId, ConfirmationStore } from "./confirmations";
+import type { ChallengeId, ChallengeStatus } from "./confirmations";
 import challengePoolFunctionsAbi from "../contracts/ChallengePool.abi.json";
 
 /**
@@ -77,8 +76,13 @@ export interface ConfirmResultCall {
   args: readonly [bigint, Address];
 }
 
+/** Lo único que la capa pura necesita del ledger de consenso: leer su estado. */
+export interface StatusReader {
+  getStatus(challengeId: ChallengeId): Promise<ChallengeStatus>;
+}
+
 export interface BuildConfirmResultCallParams {
-  store: ConfirmationStore;
+  reader: StatusReader;
   challengeId: ChallengeId;
   /** Ganador que el caller CREE que ganó. Se contrasta contra el consenso real; no se confía en él. */
   expectedWinner: string;
@@ -125,13 +129,14 @@ function requireChallengeIdAsUint256(challengeId: ChallengeId): bigint {
 export async function buildConfirmResultCall(
   params: BuildConfirmResultCallParams,
 ): Promise<ConfirmResultCall> {
-  const { store, challengeId, expectedWinner, contractAddress } = params;
+  const { reader, challengeId, expectedWinner, contractAddress } = params;
 
   const target = requireAddress(contractAddress, "contractAddress");
   const expected = requireAddress(expectedWinner, "expectedWinner");
   const challengeIdAsUint256 = requireChallengeIdAsUint256(challengeId);
 
-  const status = await getChallengeStatus(store, challengeId);
+  // `consensusReached` vale true en cualquier fase posterior a `collecting`: el consenso ya está fijado.
+  const status = await reader.getStatus(challengeId);
 
   // Reto sin ninguna confirmación registrada: `threshold` sigue en null porque nunca se fijó.
   if (status.threshold === null) {
