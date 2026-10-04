@@ -12,8 +12,8 @@
  *      un objeto parcial que alguien pueda terminar de armar y firmar por accidente.
  *      Criterio de seguridad más importante del proyecto (SDD §11, plan Fase 3).
  *
- *   2. `sendConfirmResult` / `createOperatorWriter` — envío real firmado con la cuenta
- *      operadora. Toma los parámetros YA validados por la capa 1 y los manda a la cadena.
+ *   2. `sendConfirmResult` — envío mediante un writer inyectado (en producción, el cliente
+ *      de cadena de `telegram/chain.ts`). Toma los parámetros YA validados por la capa 1.
  *
  * Estado: el `ChallengePool` Solidity está desplegado en Arc testnet
  * (`packages/arc/deployments/arc-testnet.json`) y su ciclo completo —crear, depositar,
@@ -24,10 +24,8 @@
  * depende de la otra.
  */
 
-import { createWalletClient, getAddress, http, isAddress, parseAbiItem } from "viem";
-import { privateKeyToAccount } from "viem/accounts";
-import { arbitrumSepolia } from "viem/chains";
-import type { Abi, Address, Chain, Hex } from "viem";
+import { getAddress, isAddress, parseAbiItem } from "viem";
+import type { Abi, Address, Hex } from "viem";
 import { getChallengeStatus } from "./confirmations";
 import type { ChallengeId, ConfirmationStore } from "./confirmations";
 import challengePoolFunctionsAbi from "../contracts/ChallengePool.abi.json";
@@ -182,77 +180,6 @@ export async function buildConfirmResultCall(
  */
 export interface ConfirmResultWriter {
   writeContract(call: ConfirmResultCall): Promise<Hex>;
-}
-
-export interface OperatorWriterConfig {
-  /** Clave de la cuenta operadora. SIEMPRE de `env.OPERATOR_PRIVATE_KEY` (`wrangler secret put`), nunca en código. */
-  operatorPrivateKey: string;
-  /** RPC de Arbitrum Sepolia (Alchemy) — `env.ARBITRUM_RPC_URL`. */
-  rpcUrl: string;
-  /** Por defecto Arbitrum Sepolia; parametrizable para el devnode local. */
-  chain?: Chain;
-}
-
-const PRIVATE_KEY_FORMAT = /^0x[0-9a-fA-F]{64}$/;
-
-/**
- * Crea el emisor real firmado con la cuenta operadora (viem `createWalletClient` +
- * `privateKeyToAccount`, API confirmada contra viem.sh/docs/clients/wallet y
- * viem.sh/docs/contract/writeContract).
- *
- * ⚠️ Sin cobertura de integración: no hay contrato desplegado ni clave operadora todavía
- * (docs/backend-plan.md, Pendientes). Escrito, tipado y revisado — no probado contra una red.
- */
-export function createOperatorWriter(config: OperatorWriterConfig): ConfirmResultWriter {
-  const { operatorPrivateKey, rpcUrl } = config;
-  const chain = config.chain ?? arbitrumSepolia;
-
-  // No se loguea ni se incluye la clave en ningún mensaje de error, solo su forma.
-  if (!PRIVATE_KEY_FORMAT.test(operatorPrivateKey)) {
-    throw new Error(
-      "confirmResult: OPERATOR_PRIVATE_KEY ausente o con formato inválido (se espera 0x + 64 hex)",
-    );
-  }
-  if (rpcUrl.trim() === "") {
-    throw new Error("confirmResult: ARBITRUM_RPC_URL ausente");
-  }
-
-  const account = privateKeyToAccount(operatorPrivateKey as Hex);
-  const walletClient = createWalletClient({ account, chain, transport: http(rpcUrl) });
-
-  return {
-    async writeContract(call: ConfirmResultCall): Promise<Hex> {
-      // Sin `value`: el pozo es USDC (ERC-20), la tx del operador no manda ETH nativo.
-      return walletClient.writeContract({
-        address: call.address,
-        abi: call.abi,
-        functionName: call.functionName,
-        args: call.args,
-        account,
-        chain,
-      });
-    },
-  };
-}
-
-/** Fuente de la clave operadora y del RPC: solo `env`, nunca constantes del código. */
-export interface OperatorEnv {
-  OPERATOR_PRIVATE_KEY?: string;
-  ARBITRUM_RPC_URL?: string;
-}
-
-export function createOperatorWriterFromEnv(env: OperatorEnv, chain?: Chain): ConfirmResultWriter {
-  const operatorPrivateKey = env.OPERATOR_PRIVATE_KEY;
-  const rpcUrl = env.ARBITRUM_RPC_URL;
-
-  if (!operatorPrivateKey) {
-    throw new Error("confirmResult: falta el secret OPERATOR_PRIVATE_KEY (wrangler secret put)");
-  }
-  if (!rpcUrl) {
-    throw new Error("confirmResult: falta el secret ARBITRUM_RPC_URL (wrangler secret put)");
-  }
-
-  return createOperatorWriter({ operatorPrivateKey, rpcUrl, chain });
 }
 
 /** Envía una llamada YA validada por `buildConfirmResultCall`. No revalida — no es su rol. */
