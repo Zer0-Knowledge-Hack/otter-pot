@@ -31,9 +31,9 @@ import { keys, readJson, writeJson } from "./store";
 import type { KeyValueStore } from "./store";
 import { obtenerWallet } from "./wallets";
 import type { Address } from "viem";
-import { registerConfirmation } from "../confirmations";
-import type { ConfirmationStore } from "../confirmations";
-import { buildAndSendConfirmResult } from "../confirmTx";
+import type { ConsensusGateway } from "../consensus/gateway";
+import { resolverEnCadena } from "./resolucion";
+import type { ResolucionResultado } from "./resolucion";
 
 /** Reto ya creado en la cadena, indexado por el grupo que lo abrió. */
 export interface RetoRegistrado {
@@ -50,8 +50,8 @@ export interface RetosDeps {
   transport: TelegramTransport;
   store: KeyValueStore;
   chain?: ChainClient;
-  /** Conteo de consenso — el mismo módulo que ya existía para el worker (W2.1). */
-  confirmations?: ConfirmationStore;
+  /** Ledger de consenso y ciclo de vida de la tx (#26). Sin esto, `/confirmar` no puede registrar votos. */
+  consensus?: ConsensusGateway;
 }
 
 /** Estadísticas acumuladas de un usuario, para `/historial`. */
@@ -63,6 +63,7 @@ export interface Historial {
 
 const HISTORIAL_VACIO: Historial = { jugados: 0, ganados: 0, totalMovido: 0 };
 
+const SIN_LEDGER = "No tengo dónde guardar el conteo. Avisale a quien administra el bot.";
 const SIN_CADENA =
   "No tengo la cadena configurada, así que no puedo escribir el reto. Avisale a quien administra el bot.";
 
@@ -405,88 +406,156 @@ export async function handleConfirmar(
     return;
   }
 
-  if (!deps.confirmations) {
-    await responder("No tengo dónde guardar el conteo. Avisale a quien administra el bot.");
+  if (!deps.consensus) {
+    await responder(SIN_LEDGER);
     return;
   }
 
-  const resultado = await registerConfirmation(
-    deps.confirmations,
-    reto.challengeId,
-    votante.wallet,
-    ganador.wallet,
-    reto.umbral,
-  );
+  const voto = await deps.consensus.vote(reto.challengeId, votante.wallet, ganador.wallet, reto.umbral);
 
-  if (!resultado.accepted) {
+  if (voto.kind === "invalid_wallet") {
     await responder("No pude registrar tu voto: tu wallet no es válida. Revisá <code>/miwallet</code>.");
     return;
   }
-  if (resultado.alreadyTriggered) {
-    await responder("Este reto ya se resolvió. No hacen falta más confirmaciones.");
-    return;
-  }
-  if (!resultado.consensusReached) {
-    await responder(
-      `🗳 Voto registrado: <b>${escapeHtml(votante.nombre)}</b> → <b>${escapeHtml(ganador.nombre)}</b>\nFaltan confirmaciones para llegar a ${reto.umbral}.`,
+
+  if (voto.kind === "recorded") {
+    if (!voto.consensusTriggered) {
+      await responder(
+        `🗳 Voto registrado: <b>${escapeHtml(votante.nombre)}</b> → <b>${escapeHtml(ganador.nombre)}</b>\nFaltan confirmaciones para llegar a ${reto.umbral}.`,
+      );
+      return;
+    }
+    await resolverYResponder(
+      deps,
+      reto,
+      responder,
+      `🎉 Consenso alcanzado para <b>${escapeHtml(nombreDeWallet(reto, voto.winner))}</b>. Resolviendo en la cadena…`,
     );
     return;
   }
 
-  if (!deps.chain) {
+  // Votos congelados: el consenso ya existe. Según la fase, o ya terminó, o hay que (re)enviar.
+  if (voto.phase === "confirmed") {
+    await responder(YA_RESUELTO);
+    return;
+  }
+  await resolverYResponder(deps, reto, responder, "⛓ Reintentando la resolución en la cadena…");
+}
+
+const YA_RESUELTO = "Este reto ya se resolvió. No hacen falta más confirmaciones.";
+
+/** Nombre visible de una wallet del reto; si no es de ningún participante, la wallet misma. */
+function nombreDeWallet(reto: RetoRegistrado, wallet: string): string {
+  return reto.participantes.find((p) => p.wallet.toLowerCase() === wallet.toLowerCase())?.nombre ?? wallet;
+}
+
+/**
+ * Resuelve en la cadena por la única ruta de envío (`resolverEnCadena`) y cuenta el resultado.
+ * `anuncio` se manda antes de intentar enviar; el resultado se cuenta siempre, también
+ * cuando no se hizo nada (en curso, ya confirmado, sin consenso).
+ */
+async function resolverYResponder(
+  deps: RetosDeps,
+  reto: RetoRegistrado,
+  responder: (t: string) => Promise<number | null>,
+  anuncio: string,
+): Promise<void> {
+  if (!deps.chain || !deps.consensus) {
     await responder("Se alcanzó el consenso, pero no tengo la cadena configurada para resolverlo.");
     return;
   }
 
-  await responder(`🎉 Consenso alcanzado para <b>${escapeHtml(ganador.nombre)}</b>. Resolviendo en la cadena…`);
+  await responder(anuncio);
+  const resultado = await resolverEnCadena(
+    { consensus: deps.consensus, store: deps.store, chain: deps.chain },
+    reto,
+  );
+  await responder(renderResolucion(reto, resultado));
+}
 
-  try {
-    // Se reusa la guarda de `confirmTx.ts`: vuelve a leer el consenso y aborta si
-    // el ganador no coincide exactamente. Es la validación más importante del worker,
-    // así que no se duplica acá — se llama a la que ya está probada.
-    const txHash = await buildAndSendConfirmResult(
-      {
-        store: deps.confirmations,
-        challengeId: reto.challengeId,
-        expectedWinner: ganador.wallet,
-        contractAddress: deps.chain.poolAddress,
-      },
-      deps.chain.writer,
-    );
-
-    await registrarEnHistorial(deps.store, reto, ganador.userId);
-
-    await responder(
-      [
+function renderResolucion(reto: RetoRegistrado, resultado: ResolucionResultado): string {
+  switch (resultado.kind) {
+    case "confirmed": {
+      const pozo = reto.deposito * reto.participantes.length;
+      const nombre = escapeHtml(nombreDeWallet(reto, resultado.winner));
+      if (resultado.txHash === null) {
+        return [
+          `✅ <b>Reto #${reto.challengeId} ya estaba resuelto en la cadena</b>`,
+          "",
+          `🏆 Ganó <b>${nombre}</b>`,
+          `💰 Pozo de ${pozo} USDC, menos la comisión`,
+        ].join("\n");
+      }
+      return [
         `✅ <b>Reto #${reto.challengeId} resuelto</b>`,
         "",
-        `🏆 Ganó <b>${escapeHtml(ganador.nombre)}</b>`,
-        `💰 Pozo de ${reto.deposito * reto.participantes.length} USDC, menos la comisión`,
+        `🏆 Ganó <b>${nombre}</b>`,
+        `💰 Pozo de ${pozo} USDC, menos la comisión`,
         "",
-        `<code>${escapeHtml(txHash)}</code>`,
-      ].join("\n"),
-    );
-  } catch (error) {
-    const motivo = describirErrorDeContrato(error);
-    await responder(`No pude resolver en la cadena: ${escapeHtml(motivo)}\nEl reto no cambió de estado.`);
+        `<code>${escapeHtml(resultado.txHash)}</code>`,
+      ].join("\n");
+    }
+    case "already_confirmed":
+      return YA_RESUELTO;
+    case "in_progress":
+      return `⏳ La resolución del reto #${reto.challengeId} ya está en curso. Esperá unos segundos y mirá <code>/estado ${reto.challengeId}</code>.`;
+    case "not_ready":
+      return "Todavía no hay consenso en este reto, así que no hay nada que resolver.";
+    case "failed":
+      return [
+        `No pude resolver en la cadena: ${escapeHtml(resultado.motivo)}`,
+        `El reto quedó en estado fallido. Cualquier participante puede reintentar con <code>/reintentar ${reto.challengeId}</code>.`,
+      ].join("\n");
   }
 }
 
-/** Suma el reto al historial de cada participante, marcando al ganador. */
-async function registrarEnHistorial(
-  store: KeyValueStore,
-  reto: RetoRegistrado,
-  ganadorUserId: number,
+// ─── /reintentar ─────────────────────────────────────────────────────────────
+
+export async function handleReintentar(
+  deps: RetosDeps,
+  chatId: number,
+  userId: number,
+  retoId: string | undefined,
 ): Promise<void> {
-  const pozo = reto.deposito * reto.participantes.length;
-  for (const p of reto.participantes) {
-    const previo = (await readJson<Historial>(store, keys.userHistory(p.userId))) ?? HISTORIAL_VACIO;
-    await writeJson(store, keys.userHistory(p.userId), {
-      jugados: previo.jugados + 1,
-      ganados: previo.ganados + (p.userId === ganadorUserId ? 1 : 0),
-      totalMovido: previo.totalMovido + pozo,
-    });
+  const responder = (t: string): Promise<number | null> => sendMessage(deps.transport, chatId, t);
+
+  if (!retoId) {
+    await responder("Faltó el id. Ejemplo: <code>/reintentar 0</code> — mirá <code>/retos</code>.");
+    return;
   }
+
+  const reto = await readJson<RetoRegistrado>(deps.store, keys.challenge(chatId, retoId));
+  if (!reto) {
+    await responder(`No encuentro el reto <code>${escapeHtml(retoId)}</code> en este grupo. Mirá <code>/retos</code>.`);
+    return;
+  }
+
+  // Solo participantes: el ganador sale del consenso, pero igual no cualquiera puede disparar un envío.
+  if (!reto.participantes.some((p) => p.userId === userId)) {
+    await responder("Este reto no te incluye. Solo los participantes pueden reintentar.");
+    return;
+  }
+
+  if (!deps.chain) {
+    await responder(SIN_CADENA);
+    return;
+  }
+  if (!deps.consensus) {
+    await responder(SIN_LEDGER);
+    return;
+  }
+
+  const status = await deps.consensus.getStatus(reto.challengeId);
+  if (status.phase === "collecting") {
+    await responder("Todavía no hay consenso en este reto, así que no hay nada que reintentar.");
+    return;
+  }
+  if (status.phase === "confirmed") {
+    await responder(YA_RESUELTO);
+    return;
+  }
+
+  await resolverYResponder(deps, reto, responder, "⛓ Reintentando la resolución en la cadena…");
 }
 
 // ─── /reembolso ──────────────────────────────────────────────────────────────

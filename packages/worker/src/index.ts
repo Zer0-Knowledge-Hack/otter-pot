@@ -4,18 +4,19 @@
  * Estado (docs/backend-plan.md):
  *   W0.1 — scaffold + health check.
  *   W1.1 — webhook de Telegram con validación de secret (ver ./telegram.ts).
- *   W2.1 — conteo de confirmaciones y consenso (ver ./confirmations.ts).
+ *   W2.1 — conteo de confirmaciones y consenso (ver ./consensus).
  *   W4.1 — endpoint de estado de un reto (ver ./status.ts).
+ *   #26  — consenso persistente y atómico con ciclo de vida de la tx: un Durable Object
+ *          `ConfirmationStore` por reto y un `UpdateDedupe` por chat.
  *
- * El store de confirmaciones es en memoria por ahora (placeholder documentado en
- * confirmations.ts) — no sobrevive de forma confiable entre isolates de Workers en
- * producción. Migrar a KV real es trabajo aparte, pendiente del namespace (ver
- * docs/backend-plan.md). El webhook de Telegram todavía no llama a
- * `registerConfirmation` — eso depende de resolver la identidad de wallet (W2.2,
- * bloqueado por Privy), así que por ahora ambos módulos conviven sin estar conectados.
+ * Sin los bindings de Durable Objects el worker cae a memoria con un `console.warn`
+ * (mismo criterio que `BOT_KV`): sirve para desarrollo, pero NO sobrevive entre isolates.
  */
 
-import { InMemoryConfirmationStore } from "./confirmations";
+import { InMemoryUpdateDedupe } from "./consensus/dedupe";
+import type { UpdateDedupeGateway } from "./consensus/dedupe";
+import { DurableConsensusGateway, DurableUpdateDedupe, InMemoryConsensusGateway } from "./consensus/gateway";
+import type { ConsensusGateway, DurableNamespaceLike } from "./consensus/gateway";
 import { handleChallengeStatus } from "./status";
 import { handleTelegramWebhook } from "./telegram";
 import { CloudflareKvStore, InMemoryStore } from "./telegram/store";
@@ -44,6 +45,10 @@ export interface Env {
   USDC_ADDRESS?: string;
   /** Namespace de KV con el estado del bot. Ausente en desarrollo: se usa memoria. */
   BOT_KV?: CloudflareKvNamespace;
+  /** Durable Object `ConfirmationStore`, uno por reto. Ausente en desarrollo: se usa memoria. */
+  CONFIRMATION_STORE?: DurableNamespaceLike;
+  /** Durable Object `UpdateDedupe`, uno por chat. Ausente en desarrollo: no se deduplica. */
+  UPDATE_DEDUPE?: DurableNamespaceLike;
   // Todos los secretos vienen de `wrangler secret put`, nunca hardcodeados (AGENTS.md).
 }
 
@@ -60,7 +65,20 @@ function resolverStore(env: Env): KeyValueStore {
 }
 
 const memoriaLocal = new InMemoryStore();
-const confirmationStore = new InMemoryConfirmationStore();
+const consensoLocal = new InMemoryConsensusGateway();
+const dedupeLocal = new InMemoryUpdateDedupe();
+
+/** El binding manda cuando está; sin él, memoria local con aviso (no sobrevive entre isolates). */
+function resolverConsensus(env: Env): ConsensusGateway {
+  if (env.CONFIRMATION_STORE) return new DurableConsensusGateway(env.CONFIRMATION_STORE);
+  console.warn("consenso: falta el binding CONFIRMATION_STORE, se usa memoria local (no persiste entre isolates)");
+  return consensoLocal;
+}
+
+function resolverDedupe(env: Env): UpdateDedupeGateway {
+  if (env.UPDATE_DEDUPE) return new DurableUpdateDedupe(env.UPDATE_DEDUPE);
+  return dedupeLocal;
+}
 
 const CHALLENGE_STATUS_PATH = /^\/challenges\/([^/]+)\/status$/;
 
@@ -73,7 +91,13 @@ export default {
     }
 
     if (url.pathname === "/telegram/webhook" && request.method === "POST") {
-      return handleTelegramWebhook(request, env, resolverStore(env), confirmationStore);
+      return handleTelegramWebhook(
+        request,
+        env,
+        resolverStore(env),
+        resolverConsensus(env),
+        resolverDedupe(env),
+      );
     }
 
     // Registro del menú de comandos. Es una operación de setup que se corre a mano
@@ -99,9 +123,13 @@ export default {
 
     const statusMatch = url.pathname.match(CHALLENGE_STATUS_PATH);
     if (statusMatch && request.method === "GET") {
-      return handleChallengeStatus(statusMatch[1], confirmationStore);
+      return handleChallengeStatus(statusMatch[1], resolverConsensus(env));
     }
 
     return new Response("Not found", { status: 404 });
   },
 };
+
+// Wrangler instancia estas clases por nombre: tienen que salir del módulo principal.
+export { ConfirmationStore } from "./durable/ConfirmationStore";
+export { UpdateDedupe } from "./durable/UpdateDedupe";

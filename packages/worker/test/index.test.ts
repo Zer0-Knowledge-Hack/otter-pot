@@ -1,5 +1,9 @@
 import { describe, expect, it } from "vitest";
-import worker, { type Env } from "../src/index";
+import { afterEach, vi } from "vitest";
+import worker, { ConfirmationStore, UpdateDedupe, type Env } from "../src/index";
+import { fakeNamespace } from "./helpers/durable";
+import { ConfirmationStore as ConfirmationStoreShell } from "../src/durable/ConfirmationStore";
+import { UpdateDedupe as UpdateDedupeShell } from "../src/durable/UpdateDedupe";
 
 const env: Env = { ENVIRONMENT: "test" };
 
@@ -48,6 +52,8 @@ describe("W4.1 — ruteo del endpoint de estado", () => {
       confirmationsCount: 0,
       threshold: null,
       consensusReached: false,
+      phase: "collecting",
+      attempt: 0,
     });
   });
 
@@ -57,5 +63,79 @@ describe("W4.1 — ruteo del endpoint de estado", () => {
       env,
     );
     expect(res.status).toBe(404);
+  });
+});
+
+describe("#26 — Durable Objects", () => {
+  afterEach(() => {
+    vi.unstubAllGlobals();
+    vi.restoreAllMocks();
+  });
+
+  it("exporta las dos clases de Durable Object que declara la migración", () => {
+    expect(ConfirmationStore).toBe(ConfirmationStoreShell);
+    expect(UpdateDedupe).toBe(UpdateDedupeShell);
+  });
+
+  it("GET /challenges/:id/status lee del namespace CONFIRMATION_STORE cuando está bindeado", async () => {
+    const namespace = fakeNamespace((state) => new ConfirmationStoreShell(state));
+    const envDO: Env = { ENVIRONMENT: "test", CONFIRMATION_STORE: namespace };
+
+    // Se siembra un voto directo en el Durable Object: el endpoint tiene que verlo.
+    const stub = namespace.get(namespace.idFromName("reto-do"));
+    await stub.fetch("https://do.local/", {
+      method: "POST",
+      body: JSON.stringify({ op: "vote", wallet: "0xAAAA", winner: "0xGanador", threshold: 3 }),
+    });
+
+    const res = await worker.fetch(new Request("http://worker.local/challenges/reto-do/status"), envDO);
+    expect(await res.json()).toMatchObject({
+      challengeId: "reto-do",
+      confirmationsCount: 1,
+      threshold: 3,
+      phase: "collecting",
+    });
+  });
+
+  it("sin binding usa el ledger en memoria y avisa con console.warn", async () => {
+    const warn = vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const res = await worker.fetch(new Request("http://worker.local/challenges/reto-mem/status"), { ENVIRONMENT: "test" });
+
+    expect(res.status).toBe(200);
+    expect(warn).toHaveBeenCalledWith(expect.stringContaining("CONFIRMATION_STORE"));
+  });
+
+  it("el webhook deduplica con el namespace UPDATE_DEDUPE", async () => {
+    const fetchMock = vi.fn<unknown[], Promise<Response>>(async () => Response.json({ ok: true, result: { message_id: 1 } }));
+    vi.stubGlobal("fetch", fetchMock);
+    vi.spyOn(console, "warn").mockImplementation(() => undefined);
+    const envDO: Env = {
+      ENVIRONMENT: "test",
+      TELEGRAM_WEBHOOK_SECRET: "el-secreto-correcto",
+      TELEGRAM_BOT_TOKEN: "123:abc",
+      UPDATE_DEDUPE: fakeNamespace((state) => new UpdateDedupeShell(state)),
+    };
+    const update = {
+      update_id: 500,
+      message: {
+        message_id: 1,
+        from: { id: 7, is_bot: false, first_name: "Ana" },
+        chat: { id: 55, type: "private" },
+        date: 0,
+        text: "/nutria",
+      },
+    };
+    const entrega = (): Request =>
+      new Request("http://worker.local/telegram/webhook", {
+        method: "POST",
+        headers: { "X-Telegram-Bot-Api-Secret-Token": "el-secreto-correcto" },
+        body: JSON.stringify(update),
+      });
+
+    expect((await worker.fetch(entrega(), envDO)).status).toBe(200);
+    expect((await worker.fetch(entrega(), envDO)).status).toBe(200);
+
+    const mensajes = fetchMock.mock.calls.filter((c) => String(c[0]).endsWith("/sendMessage"));
+    expect(mensajes).toHaveLength(1);
   });
 });

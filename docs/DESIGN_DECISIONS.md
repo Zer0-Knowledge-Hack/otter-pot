@@ -1,6 +1,6 @@
 # Design Decisions
 
-Decision log for the current iteration ("v8") of OtterPot. [`SDD.md`](SDD.md) remains the source of truth for the product; each decision here is folded into the SDD when it is implemented. Work items are tracked in the **ArbitrumSingapur** milestone; see [`ROADMAP.md`](ROADMAP.md).
+Decision log for the current iteration ("v8") of OtterPot. [`SDD.md`](SDD.md) remains the source of truth for the product. SDD v8 incorporates DD-01 to DD-10 as the target behavior; its section 17 tracks which of them are implemented and which are pending. Work items are tracked in the **ArbitrumSingapur** milestone; see [`ROADMAP.md`](ROADMAP.md).
 
 Each entry states the context, the decision, its consequences and how it is verified (see [`TESTING.md`](TESTING.md)).
 
@@ -25,7 +25,7 @@ Each entry states the context, the decision, its consequences and how it is veri
 
 Team decision: A. Keep the current model: fee = min(target, recovered), winner = min(pool, recovered − fee). The winner can receive less than the pool. Pitch / README / #9 must not claim no-loss or “the pot never shrinks”.
 
-**Context.** [`SDD.md`](SDD.md) §8.2 specifies that yield earned by a challenge is applied to its commission first and that the winner never receives more than the pool. The current `resolve_payout` applies the commission rate to the *recovered* amount (principal plus yield) and pays the winner the remainder, so yield can raise the winner's payout above the pool. The SDD formula `fee = max(target − yield, 0)` also leaves the platform with no fee whenever yield covers the commission.
+**Context.** SDD v7 §8.2 specified that yield earned by a challenge is applied to its commission first and that the winner never receives more than the pool. The current `resolve_payout` applies the commission rate to the *recovered* amount (principal plus yield) and pays the winner the remainder, so yield can raise the winner's payout above the pool. The SDD formula `fee = max(target − yield, 0)` also leaves the platform with no fee whenever yield covers the commission.
 
 **Decision.** The platform always receives the target commission. Yield funds it first; participants only cover the shortfall. Anything left after the winner and the fee are paid is the *surplus*, which is sent to the fee recipient.
 
@@ -133,11 +133,14 @@ Example: challenge A deposits 100; the strategy earns 10; challenge B deposits 1
 **Decision.** The confirmation store is a **Durable Object per challenge**, which gives a single writer and atomic read-modify-write. Each challenge follows an explicit lifecycle:
 
 ```
-collecting → consensus → submitted(txHash) → confirmed
-                              └──────────→ failed(reason) → (retry) → submitted
+collecting → consensus → submitting(lease) → submitted(txHash) → confirmed
+                                  │                  │
+                                  └────────→ failed(reason) → (manual retry) → submitting
 ```
 
-At most one transaction is in flight per challenge, and a failed transaction returns the challenge to a retryable state. Telegram updates are deduplicated by `update_id`.
+`submitting` is the lease phase: the right to send is granted atomically with a monotonic attempt number and a lease (180 s), renewed when the tx is broadcast. A `submitting` or `submitted` phase whose lease expired is treated as `failed("lease_expired")`, so a crashed holder is recoverable without an admin. Stale attempts are fenced: marks carrying an old attempt number are rejected. Before every send the Worker reads `challengeStatus`; an already resolved challenge becomes `confirmed` without sending.
+
+At most one transaction is in flight per challenge, and a failed transaction returns the challenge to a retryable state. Retry is manual (`/reintentar`, or `/confirmar` while `failed`) and open to any participant. History is written only on the first confirmation. Telegram updates are deduplicated by `update_id` per chat (a Durable Object with a 200-id FIFO window, failing open).
 
 **Consequences.** Votes survive restarts and concurrent voters cannot overwrite each other. KV is not used for votes because of its eventual consistency.
 

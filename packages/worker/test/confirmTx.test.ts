@@ -1,7 +1,7 @@
 import { beforeEach, describe, expect, it } from "vitest";
 import { encodeFunctionData, getAddress, toFunctionSelector } from "viem";
 import type { Hex } from "viem";
-import { InMemoryConfirmationStore, registerConfirmation } from "../src/confirmations";
+import { InMemoryConsensusGateway } from "../src/consensus/gateway";
 import {
   buildAndSendConfirmResult,
   buildConfirmResultCall,
@@ -34,26 +34,26 @@ class RecordingWriter implements ConfirmResultWriter {
 }
 
 describe("W3.1 — construcción de la llamada a confirmResult (capa pura, sin red)", () => {
-  let store: InMemoryConfirmationStore;
+  let store: InMemoryConsensusGateway;
 
   beforeEach(() => {
-    store = new InMemoryConfirmationStore();
+    store = new InMemoryConsensusGateway();
   });
 
   /** Deja el reto con consenso alcanzado para `winner` (umbral 3, tres votos coincidentes). */
   async function seedConsensus(winner: string): Promise<void> {
     const threshold = 3;
-    await registerConfirmation(store, CHALLENGE, ALICE, winner, threshold);
-    await registerConfirmation(store, CHALLENGE, BOB, winner, threshold);
-    const r = await registerConfirmation(store, CHALLENGE, CARLA, winner, threshold);
-    expect(r.consensusReached).toBe(true);
+    await store.vote(CHALLENGE, ALICE, winner, threshold);
+    await store.vote(CHALLENGE, BOB, winner, threshold);
+    const r = await store.vote(CHALLENGE, CARLA, winner, threshold);
+    expect(r).toEqual({ kind: "recorded", consensusTriggered: true, winner });
   }
 
   it("con consenso alcanzado y expectedWinner correcto: devuelve los parámetros exactos", async () => {
     await seedConsensus(WINNER);
 
     const call = await buildConfirmResultCall({
-      store,
+      reader: store,
       challengeId: CHALLENGE,
       expectedWinner: WINNER,
       contractAddress: POOL,
@@ -71,7 +71,7 @@ describe("W3.1 — construcción de la llamada a confirmResult (capa pura, sin r
     await seedConsensus(WINNER.toLowerCase());
 
     const call = await buildConfirmResultCall({
-      store,
+      reader: store,
       challengeId: CHALLENGE,
       expectedWinner: WINNER.toUpperCase().replace("0X", "0x"),
       contractAddress: POOL,
@@ -84,7 +84,7 @@ describe("W3.1 — construcción de la llamada a confirmResult (capa pura, sin r
     await seedConsensus(WINNER);
 
     const call = await buildConfirmResultCall({
-      store,
+      reader: store,
       challengeId: CHALLENGE,
       expectedWinner: WINNER,
       contractAddress: POOL,
@@ -114,7 +114,7 @@ describe("W3.1 — construcción de la llamada a confirmResult (capa pura, sin r
 
     try {
       built = await buildConfirmResultCall({
-        store,
+        reader: store,
         challengeId: CHALLENGE,
         expectedWinner: IMPOSTOR,
         contractAddress: POOL,
@@ -139,7 +139,7 @@ describe("W3.1 — construcción de la llamada a confirmResult (capa pura, sin r
 
     await expect(
       buildAndSendConfirmResult(
-        { store, challengeId: CHALLENGE, expectedWinner: IMPOSTOR, contractAddress: POOL },
+        { reader: store, challengeId: CHALLENGE, expectedWinner: IMPOSTOR, contractAddress: POOL },
         writer,
       ),
     ).rejects.toThrow(/NO coincide con el ganador del consenso/);
@@ -149,8 +149,8 @@ describe("W3.1 — construcción de la llamada a confirmResult (capa pura, sin r
 
   it("consenso todavía no alcanzado → lanza, no arma nada", async () => {
     const threshold = 3;
-    await registerConfirmation(store, CHALLENGE, ALICE, WINNER, threshold);
-    await registerConfirmation(store, CHALLENGE, BOB, WINNER, threshold);
+    await store.vote(CHALLENGE, ALICE, WINNER, threshold);
+    await store.vote(CHALLENGE, BOB, WINNER, threshold);
 
     const writer = new RecordingWriter();
     let built: ConfirmResultCall | undefined;
@@ -158,7 +158,7 @@ describe("W3.1 — construcción de la llamada a confirmResult (capa pura, sin r
     await expect(
       (async () => {
         built = await buildConfirmResultCall({
-          store,
+          reader: store,
           challengeId: CHALLENGE,
           expectedWinner: WINNER,
           contractAddress: POOL,
@@ -170,7 +170,7 @@ describe("W3.1 — construcción de la llamada a confirmResult (capa pura, sin r
 
     await expect(
       buildAndSendConfirmResult(
-        { store, challengeId: CHALLENGE, expectedWinner: WINNER, contractAddress: POOL },
+        { reader: store, challengeId: CHALLENGE, expectedWinner: WINNER, contractAddress: POOL },
         writer,
       ),
     ).rejects.toThrow(/todavía no se alcanzó/);
@@ -184,7 +184,7 @@ describe("W3.1 — construcción de la llamada a confirmResult (capa pura, sin r
     await expect(
       (async () => {
         built = await buildConfirmResultCall({
-          store,
+          reader: store,
           challengeId: "999",
           expectedWinner: WINNER,
           contractAddress: POOL,
@@ -196,7 +196,7 @@ describe("W3.1 — construcción de la llamada a confirmResult (capa pura, sin r
 
     await expect(
       buildAndSendConfirmResult(
-        { store, challengeId: "999", expectedWinner: WINNER, contractAddress: POOL },
+        { reader: store, challengeId: "999", expectedWinner: WINNER, contractAddress: POOL },
         writer,
       ),
     ).rejects.toThrow(/no tiene ninguna confirmación registrada/);
@@ -208,7 +208,7 @@ describe("W3.1 — construcción de la llamada a confirmResult (capa pura, sin r
 
     await expect(
       buildConfirmResultCall({
-        store,
+        reader: store,
         challengeId: CHALLENGE,
         expectedWinner: "no-es-una-direccion",
         contractAddress: POOL,
@@ -217,7 +217,7 @@ describe("W3.1 — construcción de la llamada a confirmResult (capa pura, sin r
 
     await expect(
       buildConfirmResultCall({
-        store,
+        reader: store,
         challengeId: CHALLENGE,
         expectedWinner: WINNER,
         contractAddress: "0x123",
@@ -228,7 +228,7 @@ describe("W3.1 — construcción de la llamada a confirmResult (capa pura, sin r
   it("rechaza un challengeId que no es un uint256 decimal", async () => {
     await expect(
       buildConfirmResultCall({
-        store,
+        reader: store,
         challengeId: "reto-1",
         expectedWinner: WINNER,
         contractAddress: POOL,
@@ -241,7 +241,7 @@ describe("W3.1 — construcción de la llamada a confirmResult (capa pura, sin r
     const writer = new RecordingWriter();
 
     const hash = await buildAndSendConfirmResult(
-      { store, challengeId: CHALLENGE, expectedWinner: WINNER, contractAddress: POOL },
+      { reader: store, challengeId: CHALLENGE, expectedWinner: WINNER, contractAddress: POOL },
       writer,
     );
 
@@ -252,6 +252,43 @@ describe("W3.1 — construcción de la llamada a confirmResult (capa pura, sin r
     expect(sent?.address).toBe(getAddress(POOL));
     expect(sent?.functionName).toBe("confirmResult");
     expect(sent?.args).toEqual([42n, getAddress(WINNER)]);
+  });
+
+  it("sigue construyendo la llamada mientras el reto está en submitting o failed (el consenso ya está fijado)", async () => {
+    await seedConsensus(WINNER);
+    await store.beginSubmit(CHALLENGE, 1_000);
+
+    const enVuelo = await buildConfirmResultCall({
+      reader: store,
+      challengeId: CHALLENGE,
+      expectedWinner: WINNER,
+      contractAddress: POOL,
+    });
+    expect(enVuelo.args).toEqual([42n, getAddress(WINNER)]);
+
+    await store.markFailed(CHALLENGE, 1, "send failed");
+    const reintento = await buildConfirmResultCall({
+      reader: store,
+      challengeId: CHALLENGE,
+      expectedWinner: WINNER,
+      contractAddress: POOL,
+    });
+    expect(reintento.args).toEqual([42n, getAddress(WINNER)]);
+  });
+
+  it("TEST NEGATIVO: en phase failed un ganador distinto al del consenso sigue abortando", async () => {
+    await seedConsensus(WINNER);
+    await store.beginSubmit(CHALLENGE, 1_000);
+    await store.markFailed(CHALLENGE, 1, "send failed");
+
+    await expect(
+      buildConfirmResultCall({
+        reader: store,
+        challengeId: CHALLENGE,
+        expectedWinner: IMPOSTOR,
+        contractAddress: POOL,
+      }),
+    ).rejects.toThrow(/NO coincide con el ganador del consenso/);
   });
 });
 

@@ -159,6 +159,12 @@ export interface ChainClient {
   estadoDeReto(challengeId: bigint): Promise<number>;
   reembolsar(challengeId: bigint): Promise<Hex>;
   /**
+   * Espera el receipt de una tx ya enviada. Resuelve con el status del receipt
+   * (`success` o `reverted`) y rechaza si no aparece antes de `timeoutMs`.
+   * Un timeout NO prueba que la tx falló: el llamador decide cómo registrarlo.
+   */
+  esperarRecibo(hash: Hex, timeoutMs: number): Promise<"success" | "reverted">;
+  /**
    * Convierte un monto humano («25») a las unidades crudas del token.
    *
    * Imprescindible: el USDC de Circle tiene 6 decimales y el `mock_usdc` local
@@ -261,6 +267,11 @@ export function crearChainClient(config: ChainConfig): ChainClient {
         args: [challengeId],
       });
       return Number(status);
+    },
+
+    async esperarRecibo(hash, timeoutMs) {
+      const receipt = await publicClient.waitForTransactionReceipt({ hash, timeout: timeoutMs });
+      return receipt.status;
     },
 
     async reembolsar(challengeId) {

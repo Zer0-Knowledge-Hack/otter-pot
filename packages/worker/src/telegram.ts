@@ -4,7 +4,8 @@
  * Dos responsabilidades, en este orden y sin mezclarse:
  *   1. Autenticar: que el request venga realmente de Telegram
  *      (header X-Telegram-Bot-Api-Secret-Token). Falla cerrado.
- *   2. Delegar el update al router (`./telegram/router.ts`), que decide qué hacer.
+ *   2. Deduplicar por `update_id` y por chat: Telegram reentrega hasta recibir un 200.
+ *   3. Delegar el update al router (`./telegram/router.ts`), que decide qué hacer.
  *
  * El webhook SIEMPRE responde 200 tras autenticar, incluso si el manejo del comando
  * falla: Telegram reintenta los updates que no reciben 200, y un error nuestro no
@@ -12,7 +13,8 @@
  */
 
 import type { Env } from "./index";
-import type { ConfirmationStore } from "./confirmations";
+import type { ConsensusGateway } from "./consensus/gateway";
+import type { UpdateDedupeGateway } from "./consensus/dedupe";
 import { TelegramApi } from "./telegram/api";
 import { configDesdeEnv, crearChainClient } from "./telegram/chain";
 import type { ChainClient } from "./telegram/chain";
@@ -22,11 +24,36 @@ import type { TelegramUpdate } from "./telegram/types";
 
 const TELEGRAM_SECRET_HEADER = "X-Telegram-Bot-Api-Secret-Token";
 
+/** Clave de dedupe: el chat del mensaje, o el del callback, o un cubo común si el update no tiene chat. */
+export function claveDeChat(update: TelegramUpdate): string {
+  const chatId = update.message?.chat.id ?? update.callback_query?.message?.chat.id;
+  return chatId === undefined ? "nochat" : String(chatId);
+}
+
+/**
+ * `true` si el update hay que procesarlo. Falla abierto: si el dedupe no responde se procesa
+ * igual, porque perder un update es peor que procesarlo dos veces — el CAS de `beginSubmit`
+ * ya impide un doble envío on-chain.
+ */
+async function esUpdateNuevo(update: TelegramUpdate, dedupe?: UpdateDedupeGateway): Promise<boolean> {
+  if (!dedupe) {
+    console.warn("telegram: sin dedupe configurado, no se filtran las reentregas de updates");
+    return true;
+  }
+  try {
+    return await dedupe.markIfNew(claveDeChat(update), update.update_id);
+  } catch (error) {
+    console.warn("telegram: falló el dedupe, se procesa el update igual —", error);
+    return true;
+  }
+}
+
 export async function handleTelegramWebhook(
   request: Request,
   env: Env,
   store?: KeyValueStore,
-  confirmations?: ConfirmationStore,
+  consensus?: ConsensusGateway,
+  dedupe?: UpdateDedupeGateway,
 ): Promise<Response> {
   const providedSecret = request.headers.get(TELEGRAM_SECRET_HEADER);
   const expectedSecret = env.TELEGRAM_WEBHOOK_SECRET;
@@ -57,6 +84,11 @@ export async function handleTelegramWebhook(
     return Response.json({ ok: true });
   }
 
+  // Idempotencia: un update ya marcado se reconoce con 200 sin ningún efecto.
+  if (!(await esUpdateNuevo(update, dedupe))) {
+    return Response.json({ ok: true });
+  }
+
   // La cadena es opcional: sin ella el bot funciona igual y los comandos que
   // escriben avisan que no está configurada, en vez de reventar.
   let chain: ChainClient | undefined;
@@ -71,7 +103,7 @@ export async function handleTelegramWebhook(
       transport: new TelegramApi(env.TELEGRAM_BOT_TOKEN),
       store,
       chain,
-      confirmations,
+      consensus,
       miniAppUrl: env.MINIAPP_URL,
     });
   } catch (error) {

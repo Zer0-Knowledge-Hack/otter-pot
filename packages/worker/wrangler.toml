@@ -9,6 +9,25 @@ compatibility_flags = ["nodejs_compat"]
 binding = "BOT_KV"
 id = "4d534dc1410c4776b80a5f779d749b5a"
 
+# Durable Objects (#26): consenso persistente y atómico, y dedupe de updates.
+#   CONFIRMATION_STORE — un objeto por reto: votos, fase y lease de la tx de confirmación.
+#   UPDATE_DEDUPE      — un objeto por chat: ids de update ya procesados (ventana FIFO).
+# Sin estos bindings el worker cae a memoria con un console.warn: sirve para
+# `wrangler dev`, pero no sobrevive entre isolates.
+[[durable_objects.bindings]]
+name = "CONFIRMATION_STORE"
+class_name = "ConfirmationStore"
+
+[[durable_objects.bindings]]
+name = "UPDATE_DEDUPE"
+class_name = "UpdateDedupe"
+
+# Las etiquetas de migración son inmutables: no borrar ni renombrar estas clases sin
+# una etiqueta nueva. El plan Free exige Durable Objects respaldados por SQLite.
+[[migrations]]
+tag = "v1"
+new_sqlite_classes = ["ConfirmationStore", "UpdateDedupe"]
+
 # Configuración de la cadena. Arc testnet (Circle) es el destino actual: los valores
 # salen de packages/arc/deployments/arc-testnet.json, que es el registro canónico.
 # Nada de esto es secreto — son direcciones públicas y un RPC público.

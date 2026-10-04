@@ -4,9 +4,10 @@
 
 | Campo | Valor |
 | --- | --- |
-| Track | Arbitrum — ETH Lima 2026 |
-| Estado | v6 — alineado con la implementación actual de los contratos (ChallengePool, TreasuryVault, USDC testnet) |
-| Base de este documento | Reunión de equipo del 4 ago 2026 + sesiones de diseño posteriores |
+| Track | Arbitrum Open House Singapore (el proyecto nació en ETH Lima 2026) |
+| Estado | v8 — modelo de pago con comisión objetivo y excedente al fee recipient, tope de comisión, validación del roster, cancelación en Abierto, acreditación de rendimiento en la Tesorería, relayer confiable y política del Sweeper |
+| Implementación | Este documento describe el comportamiento objetivo de la v8. La sección 17 indica qué está implementado y qué está pendiente, con su issue del milestone ArbitrumSingapur |
+| Decisiones de diseño | [`DESIGN_DECISIONS.md`](DESIGN_DECISIONS.md) (DD-01 a DD-10) |
 | Alcance de detalle | Documento de referencia para todo el equipo; profundidad técnica adicional en los módulos de Smart Contract y Backend |
 
 ---
@@ -19,14 +20,18 @@ La visión de largo plazo es que esta infraestructura sirva tanto para retos inf
 
 ## 2. Alcance
 
-### 2.1 Dentro del alcance del MVP (4 días de desarrollo)
+### 2.1 Dentro del alcance del MVP
+
+La definición del MVP, sus fases y sus criterios de entrega están en [`ROADMAP.md`](ROADMAP.md). Dentro del alcance:
 
 - Un smart contract en Stylus que gestiona múltiples retos de forma simultánea.
 - Un caso de uso de validación completamente funcional: reto físico/deportivo con confirmación por consenso de participantes.
-- Bot de Telegram con Mini App para crear retos, depositar, confirmar resultados y consultar el estado del pozo.
-- Autenticación y wallet embebida mediante Privy.
-- Modelo de comisión porcentual funcionando de extremo a extremo.
-- Arquitectura de tesorería con contabilidad por participaciones, conectada a una implementación funcional real de una estrategia de rendimiento (sección 7.3), no solo a un mock.
+- Bot de Telegram con una página de depósito (Mini App) para crear retos, depositar, confirmar resultados y consultar el estado del pozo.
+- Modelo de comisión porcentual funcionando de extremo a extremo, con **recolección directa en el fee recipient de la plataforma** (sección 8.2).
+- Validación del roster al crear un reto (sección 6.2).
+- Cancelación de retos en estado Abierto y **reembolso en Abierto post-plazo** como red de seguridad (sección 6.3).
+- Arquitectura de tesorería con contabilidad por participaciones, conectada a una implementación funcional real de una estrategia de rendimiento (sección 7.3), no solo a un mock, con el rendimiento acreditado en cada depósito y canje (sección 7.2).
+- Relayer confiable: consenso persistente, recibo de transacción confirmado y una sola configuración de cadena (sección 9.2).
 
 ### 2.2 Fuera del alcance del MVP (roadmap)
 
@@ -35,6 +40,9 @@ La visión de largo plazo es que esta infraestructura sirva tanto para retos inf
 - Wallets inteligentes individuales por usuario (account abstraction completa).
 - KYC para retos comunitarios grandes o de montos elevados.
 - Modo "juez" para hackathons/comunidades, aunque el contrato lo soporta desde el diseño.
+- Autenticación y wallet embebida mediante Privy: para el MVP se entregan maquetas del flujo; la integración completa es roadmap.
+- Ventana de veto sobre el resultado y agente de IA que proponga el veredicto.
+- Retos de colecta (destino externo a los participantes).
 - Soporte multiplataforma más allá de Telegram.
 - Estrategias de rendimiento adicionales a la definida en 7.3 (quedan como extensiones futuras del mismo adaptador).
 
@@ -46,16 +54,20 @@ La visión de largo plazo es que esta infraestructura sirva tanto para retos inf
 - **Participación (share):** unidad contable interna de la Tesorería que representa la proporción de capital que le corresponde a un reto dentro del valor total de la Tesorería.
 - **Estrategia de rendimiento (Yield Strategy):** implementación concreta que coloca el capital de la Tesorería en un protocolo externo de préstamos para generar rendimiento. Ver sección 7.3.
 - **Operador:** dirección autorizada por el contrato para relayar confirmaciones ya verificadas off-chain, sin capacidad de mover fondos a direcciones arbitrarias.
+- **Relayer:** componente del Worker que cuenta los votos de Telegram y, al alcanzarse el consenso, firma con la cuenta operadora y envía `confirmResult` al contrato (sección 9.2).
+- **Fee recipient:** dirección que recibe la comisión de la plataforma y el excedente de rendimiento de cada reto resuelto (sección 8.2).
+- **Excedente:** parte de lo recuperado de la Tesorería que sobra después de pagar al ganador y la comisión (sección 8.2).
 - **Modo de resolución:** parámetro de un reto que determina si se resuelve por consenso automático de los participantes o por un juez designado.
 
 ## 4. Roles y responsabilidades del equipo
 
 | Rol | Persona | Responsabilidad principal |
 | --- | --- | --- |
-| Pitch y presentación | William | Video pitch, narrativa de negocio, pitch deck |
-| Landing, bot y orquestación | Julio | Landing page, bot de Telegram, backend en Cloudflare Workers |
-| Backend y Smart Contract | Moises | Diseño e implementación del contrato en Stylus, lógica de tesorería y comisiones, integración del backend con el contrato |
-| Frontend y auditoría de seguridad | Luishiño | Auditoría de seguridad del contrato, apoyo en frontend/Mini App según disponibilidad |
+| Negocio, demo y pitch | William | Narrativa de negocio, demo, video pitch y pitch deck |
+| Bot de Telegram y relayer | Julio | Bot de Telegram, Worker orquestador (relayer) y su integración con los contratos |
+| Contratos | Moises | Diseño e implementación de los contratos en Stylus, lógica de tesorería y comisiones, despliegue |
+| Frontend | Fernando | Interfaz: landing y pantallas del flujo de depósito |
+| Seguridad y Mini App | Luishiño | Revisión de seguridad de los contratos, Sweeper (clave de administrador) y Mini App de Telegram |
 
 Este documento sirve como referencia común: cada módulo de la sección 6 en adelante indica qué rol lo implementa.
 
@@ -63,13 +75,13 @@ Este documento sirve como referencia común: cada módulo de la sección 6 en ad
 
 ### 5.1 Vista general de componentes
 
-El sistema se compone de seis elementos principales que interactúan entre sí: el bot de Telegram con su Mini App como interfaz de usuario; Privy como capa de autenticación y wallet embebida; el backend orquestador en Cloudflare Workers; el Sweeper Worker automatizado (cron) para la gestión de tesorería; el contrato de Retos (ChallengePool) como custodio de cada pozo individual; y el contrato de Tesorería (TreasuryVault) como gestor del capital agregado y su colocación en la estrategia de rendimiento definida en la sección 7.3.
+El sistema se compone de seis elementos principales que interactúan entre sí: el bot de Telegram con su página de depósito (Mini App) como interfaz de usuario; Privy como capa de autenticación y wallet embebida (roadmap para el MVP, sección 2.2); el backend orquestador en Cloudflare Workers; el Sweeper Worker automatizado (cron) para la gestión de tesorería; el contrato de Retos (ChallengePool) como custodio de cada pozo individual; y el contrato de Tesorería (TreasuryVault) como gestor del capital agregado y su colocación en la estrategia de rendimiento definida en la sección 7.3.
 
 La interfaz de usuario no se comunica nunca directamente con la Tesorería ni con el Sweeper: toda interacción del usuario pasa por el contrato de Retos, que a su vez delega en la Tesorería el manejo del capital mientras un reto está activo.
 
 ### 5.2 Flujo principal (caso de uso ancla: reto deportivo)
 
-Un participante crea un reto desde el bot, definiendo participantes, monto de depósito (en USDC) y plazo. Cada participante conecta su wallet vía Privy desde la Mini App, aprueba el monto de USDC necesario al contrato de Retos y deposita su cuota, quedando su fondo retenido. Cuando todos los participantes han depositado, el contrato mueve el pozo a la Tesorería y recibe a cambio participaciones equivalentes al valor depositado. Durante la duración del reto, la Tesorería mantiene ese capital (USDC) colocado en la estrategia de rendimiento definida en 7.3 junto con el capital de otros retos activos. Al vencer el plazo, los participantes confirman el resultado desde el bot; el backend cuenta las confirmaciones y, al alcanzar consenso, dispara la resolución en el contrato. El contrato de Retos canjea sus participaciones en la Tesorería, recibiendo el capital original más el rendimiento generado en USDC durante ese periodo, aplica la comisión correspondiente, y transfiere el remanente a la wallet del ganador. Todo el proceso queda registrado en eventos verificables en el explorador de bloques.
+Un participante crea un reto desde el bot, definiendo participantes, monto de depósito (en USDC) y plazo. Cada participante conecta su wallet desde la página de depósito (con Privy en el roadmap), aprueba el monto de USDC necesario al contrato de Retos y deposita su cuota, quedando su fondo retenido. Cuando todos los participantes han depositado, el contrato mueve el pozo a la Tesorería y recibe a cambio participaciones equivalentes al valor depositado. Durante la duración del reto, la Tesorería mantiene ese capital (USDC) colocado en la estrategia de rendimiento definida en 7.3 junto con el capital de otros retos activos. Al vencer el plazo, los participantes confirman el resultado desde el bot; el backend cuenta las confirmaciones y, al alcanzar consenso, dispara la resolución en el contrato. El contrato de Retos canjea sus participaciones en la Tesorería, recibiendo el capital original más el rendimiento generado en USDC durante ese periodo, calcula el pago según la sección 8.2, paga al ganador y transfiere la comisión y el excedente al fee recipient. Todo el proceso queda registrado en eventos verificables en el explorador de bloques.
 
 ### 5.3 Diagrama de arquitectura general
 
@@ -115,6 +127,8 @@ graph TB
 
 ### 5.3.1 Arquitectura detallada de contratos (Arbitrum Sepolia - Chain ID 421614)
 
+> Las direcciones del diagrama corresponden al despliegue vigente. La v8 se despliega de una sola vez (`DESIGN_DECISIONS.md`, DD-09) y sus direcciones se publican al completarse el despliegue (#24).
+
 ```mermaid
 graph TB
     subgraph USDCToken["Token ERC-20"]
@@ -141,9 +155,7 @@ graph TB
 
     subgraph OperatorActions["Acciones de Operadora (backend)"]
         O1[confirmResult challengeId winner]
-        O2[addOperator / removeOperator]
-        O3[setCommissionRate]
-        O4[setTreasuryVault]
+        O2[cancelChallenge challengeId]
     end
 
     subgraph AdminActions["Acciones de Admin (owner)"]
@@ -153,6 +165,8 @@ graph TB
         A4[realizeYield]
         A5[setPaused]
         A6[transferOwnership]
+        A7[addOperator / removeOperator]
+        A8[setCommissionRate / setFeeRecipient / setTreasuryVault]
     end
 
     %% Conexiones principales
@@ -175,6 +189,7 @@ graph TB
     USDC -->|approve| TV
     USDC -->|supply| AAVE_POOL
     USDC -->|"transfer (payout/winner)"| CP
+    USDC -->|"transfer (fee + excedente)"| CP
     USDC -->|"transfer (refund)"| CP
 
     %% User interactions
@@ -186,8 +201,6 @@ graph TB
     %% Operator interactions
     O1 -.-> CP
     O2 -.-> CP
-    O3 -.-> CP
-    O4 -.-> CP
 
     %% Admin interactions
     A1 -.-> TV
@@ -196,6 +209,8 @@ graph TB
     A4 -.-> TV
     A5 -.-> TV
     A6 -.-> TV
+    A7 -.-> CP
+    A8 -.-> CP
 ```
 
 ### 5.3.2 Flujo de datos y ciclo de vida del capital
@@ -246,8 +261,9 @@ sequenceDiagram
     AS->>AAVE: withdraw(USDC, amount, to=TV)
     AAVE-->>TV: USDC (capital + yield)
     TV-->>CP: USDC recuperado
-    CP->>CP: aplica comisión (rateBps)
-    CP->>USDC: transfer(winner, payout_neto)
+    CP->>CP: calcula ganador, fee y excedente (sección 8.2)
+    CP->>USDC: transfer(winner, ganador)
+    CP->>USDC: transfer(fee_recipient, fee + excedente)
     CP-->>Usuario: ChallengeResolved event
 ```
 
@@ -265,9 +281,9 @@ graph LR
         CP_Init[init<br/>solo owner]
         CP_Create[createChallenge<br/>cualquiera]
         CP_Deposit[deposit<br/>solo participantes]
-        CP_Confirm[confirmResult<br/>solo operadora]
+        CP_Confirm[confirmResult / cancelChallenge<br/>solo operadora]
         CP_Refund[refund / claimRefund<br/>cualquiera / participantes]
-        CP_Admin[setCommissionRate<br/>setTreasuryVault<br/>add/removeOperator<br/>solo owner]
+        CP_Admin[setCommissionRate<br/>setFeeRecipient<br/>setTreasuryVault<br/>add/removeOperator<br/>solo owner]
     end
 
     subgraph TreasuryVault["TreasuryVault"]
@@ -339,8 +355,8 @@ sequenceDiagram
     alt Consenso alcanzado antes del plazo
         CP->>TV: Canjear participaciones del reto
         TV-->>CP: capital + rendimiento correspondiente
-        CP->>CP: Aplicar comisión dinámica (sección 8)
-        CP->>P: Transferir remanente al ganador
+        CP->>CP: Calcular ganador, fee y excedente (sección 8.2)
+        CP->>P: Pagar al ganador y transferir fee y excedente al fee recipient
         CP-->>Bot: Evento ChallengeResolved
     else Plazo vencido sin consenso
         CP->>TV: Canjear participaciones del reto
@@ -444,16 +460,26 @@ Gestionar el ciclo de vida completo de cada reto: creación, recepción de depó
 
 ### 6.2 Modelo de datos (descriptivo)
 
-Cada reto conserva: identificador único, dirección de quien lo creó, lista de participantes, monto de depósito requerido por participante, plazo de resolución, modo de resolución, dirección del juez (si aplica), estado actual, registro de quién ya depositó, registro de confirmaciones recibidas por posible ganador, número de participaciones de Tesorería asociadas al reto, y dirección del ganador una vez resuelto.
+Cada reto conserva: identificador único, dirección de quien lo creó, lista de participantes (direcciones), monto de depósito requerido por participante, plazo de resolución, modo de resolución, dirección del juez (si aplica), estado actual, registro de quién ya depositó, registro de confirmaciones recibidas por posible ganador, número de participaciones de Tesorería asociadas al reto, y dirección del ganador una vez resuelto.
 
-El contrato mantiene además, a nivel global, la lista de operadores autorizados y la dirección de la Tesorería con la que opera.
+La lista de direcciones de participantes se almacena de forma **iterable** (`StorageVec<Address>`) además del registro booleano por dirección, porque la cancelación y el reembolso del estado Abierto requieren enumerar a los depositantes para devolverles sus fondos (ver 6.3 y 6.5).
+
+**Validación del roster al crear un reto** (DD-03). `createChallenge` revierte si la lista de participantes tiene menos de 2 o más de 20 direcciones, contiene la dirección cero o repite una dirección, o si el plazo (`deadline`) no es posterior al momento de la creación. Un reto con una dirección repetida nunca alcanzaría su conteo de depositantes y quedaría sin poder bloquearse; el tope de 20 acota el costo de gas de la verificación de duplicados y de la cancelación.
+
+El creador registrado on-chain es la cuenta operadora que firmó `createChallenge`; el creador humano solo existe off-chain (en el armado del bot).
+
+El contrato mantiene además, a nivel global: la lista de operadores autorizados, la dirección de la Tesorería con la que opera y la dirección **`fee_recipient`** que recauda las comisiones (sección 8.2).
 
 ### 6.3 Ciclo de vida de un reto (estados)
 
-1. **Abierto:** el reto fue creado y está a la espera de que todos los participantes depositen. Puede cancelarse libremente en este estado, ya que ningún fondo ha sido comprometido.
+1. **Abierto:** el reto fue creado y está a la espera de que todos los participantes depositen. Durante este estado pueden existir **depósitos parciales** retenidos en el propio `ChallengePool` (los fondos aún no salieron hacia la Tesorería). El reto puede **cancelarse** libremente en este estado: cada participante que depositó recupera el 100% de su depósito (6.5). Si el plazo vence sin que todos hayan depositado, el **reembolso queda disponible** (`refund`) como red de seguridad para que ningún fondo quede bloqueado.
 2. **Bloqueado:** todos los participantes depositaron. El pozo se transfiere a la Tesorería a cambio de participaciones. A partir de este punto ya no es posible cancelar; solo resolver o, si se cumple el plazo sin consenso, reembolsar.
-3. **Resuelto:** se alcanzó un ganador válido. El contrato canjeó sus participaciones, aplicó la comisión y transfirió el remanente al ganador. Este es un estado final.
-4. **Reembolsado:** venció el plazo sin que se alcanzara consenso o resolución por juez. El contrato canjea las participaciones y devuelve a cada participante su depósito original más la parte proporcional de rendimiento que le corresponde, sin cobrar comisión. Este es un estado final.
+3. **Resuelto:** se alcanzó un ganador válido. El contrato canjeó sus participaciones, calculó el pago según la sección 8.2, pagó al ganador y transfirió la comisión y el excedente al `fee_recipient` de la plataforma. Este es un estado final. Si el canje devuelve cero, la resolución se aborta y el reto no cambia de estado.
+4. **Reembolsado:** este estado terminal tiene **dos orígenes**:
+   - *Reto bloqueado* que venció sin consenso: el contrato canjea sus participaciones de la Tesorería y cada participante reclama su parte proporcional (capital + rendimiento), sin comisión.
+   - *Reto cancelado en Abierto* (o Abierto vencido sin depósito completo): el contrato devuelve directamente el depósito de cada participante que pagó, sin pasar por la Tesorería, identificable por el evento `ChallengeCancelled` (en lugar de `ChallengeRefunded`).
+
+   En ambos casos es un estado final y **sin comisión**.
 
 ### 6.4 Modos de resolución
 
@@ -467,10 +493,12 @@ El contrato mantiene además, a nivel global, la lista de operadores autorizados
 - Todo depósito se realiza utilizando el token ERC-20 USDC en la red Arbitrum. Por lo tanto, requiere que el usuario haya ejecutado previamente una transacción de `approve` al contrato de Retos.
 - **Instancia de USDC:** en Arbitrum Sepolia se utiliza el USDC nativo de Circle en `0x75faf114eafb1BDbe2f0316DF893fd58CE46AA4d` (red de prueba; en Arbitrum One es `0xaf88d065e77c8cC2239327C5EDb3A432268e5831`). No está hardcodeado en el contrato: se inyecta por `USDC_ADDRESS` / `--usdc` y se fija en `init`. **La misma instancia** de USDC es la que mintea/instrumenta `TreasuryVault` y la que se usa como activo en la estrategia de rendimiento (sección 7.3). En el devnode Nitro local el USDC real no existe, por lo que se despliega un `MockUsdc` (solo local, nunca en testnet).
 - Un depósito solo es válido si proviene de una dirección registrada como participante del reto, el usuario cuenta con el balance y la aprobación suficiente, y el monto transferido coincide exactamente con el monto requerido.
-- Un reto solo pasa a estado Bloqueado cuando la totalidad de los participantes ha depositado.
+- Un reto solo pasa a estado Bloqueado cuando la totalidad de los participantes ha depositado. Si el plazo vence sin que eso ocurra, el reto queda **cancelable/reembolsable** sin depender de un consenso: es la garantía de que los depósitos parciales del estado Abierto nunca quedan atrapados.
+- **Cancelación en Abierto:** solo puede ejecutarse sobre un reto en estado Abierto y la llama un operador a pedido del creador del reto en Telegram (o de un admin del grupo). El reembolso se dirige **siempre** a las direcciones de participantes que ya depositaron (por el monto exacto `required_deposit`), nunca a una dirección arbitraria.
 - Una confirmación de resultado solo es válida si proviene de un participante del reto o de un operador autorizado relayando una confirmación verificada off-chain.
 - El reembolso debe estar disponible sin condiciones adicionales una vez vencido el plazo sin resolución, como garantía de que ningún fondo quede bloqueado indefinidamente.
-- Ninguna transferencia de fondos a una dirección distinta del ganador calculado por el propio contrato debe ser posible, incluyendo desde una cuenta operadora.
+- Ninguna transferencia de fondos a una dirección distinta del ganador calculado por el propio contrato debe ser posible, incluyendo desde una cuenta operadora. La única excepción es la transferencia de la comisión y del excedente al `fee_recipient` fijado por la cuenta administradora (secciones 8.2 y 11).
+- Todo reto se crea con un roster válido (sección 6.2): sin duplicados, entre 2 y 20 participantes y con un plazo futuro.
 
 ### 6.6 Nombres de funciones del contrato (ABI on-chain)
 
@@ -479,12 +507,18 @@ El contrato Stylus se escribe en Rust con funciones `snake_case` (p. ej. `create
 - `createChallenge(requiredDeposit, deadline, participants[])`
 - `deposit(challengeId)`
 - `confirmResult(challengeId, winner)`
-- `refund(challengeId)` / `claimRefund(challengeId)`
+- `cancelChallenge(challengeId)` — solo estado Abierto; operador; reembolso directo a depositantes (6.3/6.5)
+- `refund(challengeId)` / `claimRefund(challengeId)` — `refund` acepta **Bloqueado vencido sin consenso** y **Abierto vencido sin depósito completo**
 - `challengeStatus(challengeId)` / `isOperator(address)` / `commissionRate()`
-- `addOperator(address)` / `removeOperator(address)` / `setCommissionRate(rateBps)`
+- `addOperator(address)` / `removeOperator(address)` / `setCommissionRate(rateBps)` — `rateBps` no puede superar `MAX_COMMISSION_BPS` (1000, es decir 10 %)
+- `setFeeRecipient(address)` / `feeRecipient()` — destino de la comisión y del excedente (8.2), solo owner, evento `FeeRecipientUpdated`
 - `init(vault, usdc, commissionBps)`
 
-El contrato no guarda parámetros de modo de resolución ni de juez: la resolución se determina por `confirmResult(challengeId, winner)`, que solo puede llamar una cuenta operadora (sección 9 y 11) retransmitiendo el resultado consensuado off-chain.
+El contrato no guarda parámetros de modo de resolución ni de juez: la resolución se determina por `confirmResult(challengeId, winner)`, que solo puede llamar una cuenta operadora (sección 9 y 11) retransmitiendo el resultado consensuado off-chain. De forma equivalente, la cancelación en estado Abierto no expone una autorización por "creador" on-chain (el creador on-chain es el operador que firmó `createChallenge`, sección 9): el derecho del creador humano a cancelar se valida off-chain en el Worker y el operador relaya `cancelChallenge`.
+
+Eventos relevantes: `ChallengeResolved(challengeId, winner, payout, fee, surplus)`, `ChallengeCancelled(challengeId)`, `ChallengeRefunded(challengeId, refundPerParticipant)`, `CommissionRateUpdated(previousRate, newRate)` y `FeeRecipientUpdated(previous, new)`.
+
+Las funciones `cancelChallenge`, `setFeeRecipient`/`feeRecipient`, el comportamiento ampliado de `refund`, el tope `MAX_COMMISSION_BPS` y la validación del roster corresponden a los cambios v7 y v8. La relación de cambio, el impacto y el estado de implementación están en la sección 17.
 
 Esta regla aplica igualmente a `TreasuryVault` (§7), cuyo ABI real es: `init(usdc)`, `deposit(assets)`, `redeemShares(shares, to)`, `pricePerShare()`, `totalAssets()`, `totalShares()`, `strategyDeployed()`, `deployToStrategy(amount)`, `withdrawFromStrategy(amount)`, `withdrawAllFromStrategy()`, `realizeYield()` (sin argumentos: calcula el delta comparando el balance de la estrategia contra la última posición `strategyDeployed`), `setStrategy(strategy)`, `setPaused(bool)`, `transferOwnership(newOwner)`, `acceptOwnership()`, `strategy()`, `usdc()`, `pendingOwner()`.
 
@@ -501,6 +535,10 @@ Agregar el capital proveniente de todos los retos activos, colocarlo en la estra
 La Tesorería gestiona exclusivamente capital en USDC. No lleva un registro de "cuánto generó cada día" repartido entre los retos activos ese día. En su lugar, funciona como un vault de participaciones: al recibir el capital (en USDC) de un reto, emite participaciones calculadas al precio vigente, definido como el valor total de la Tesorería (incluyendo el rendimiento en USDC) dividido entre el total de participaciones en circulación. A medida que la estrategia de rendimiento genera interés, el valor total de la Tesorería aumenta mientras el número de participaciones permanece constante, de modo que cada participación incrementa su valor de forma uniforme para todos sus tenedores. Cuando un reto se resuelve o se reembolsa, canjea exactamente sus propias participaciones, recibiendo su capital original más el rendimiento generado en USDC específicamente por ese capital durante el tiempo que estuvo depositado.
 
 Esta mecánica garantiza que ningún reto obtiene una ventaja o desventaja por el tamaño de la Tesorería en el momento en que resuelve, ni por la cantidad de otros retos corriendo en paralelo. El rendimiento que le corresponde a cada reto depende únicamente de su propio capital, del tiempo que estuvo depositado y de la tasa de rendimiento vigente del mercado — no de una asignación arbitraria entre retos concurrentes.
+
+**Acreditación del rendimiento en cada operación (DD-05).** Para que la propiedad anterior se cumpla sin depender de un proceso externo, `TreasuryVault` ejecuta una acreditación interna al inicio de `deposit` y de `redeemShares`: compara el saldo que reporta la estrategia con `strategyDeployed` y actualiza `totalAssets` y `strategyDeployed`, **al alza o a la baja**. De este modo el precio de la participación es correcto en cada operación y un reto que entra después de que Aave generó rendimiento no compra participaciones a un precio desactualizado. Si la estrategia pierde valor, la pérdida se reconoce en el precio y el último en canjear recibe lo que realmente existe, sin revertir. `realizeYield()` se conserva como punto de entrada manual a la misma rutina. Sin estrategia configurada, la acreditación no hace nada.
+
+Ejemplo: el reto A deposita 100; la estrategia genera 10; el reto B deposita 100. La acreditación sube el precio de la participación a 1,10 antes de emitir las participaciones de B, de modo que A canjea 110 y B canjea 100.
 
 ### 7.3 Estrategia de rendimiento — interfaz, implementación concreta y gobernanza
 
@@ -552,42 +590,62 @@ Para retos de corta duración (horas) y montos pequeños, el rendimiento generad
 
 ### 8.1 Comisión base (objetivo)
 
-Cada reto resuelto con éxito paga una comisión sobre el valor recuperado de la Tesorería. La **comisión objetivo** se calcula sobre el **pozo** (la suma de depósitos original del reto: `required_deposit × participant_count`), no sobre el monto recuperado ni sobre una porción arbitraria. El porcentaje es un parámetro configurable del contrato, ajustable únicamente por la cuenta administradora en cualquier momento después del despliegue mediante la función `setCommissionRate(rateBps)`. Cada cambio emite el evento `CommissionRateUpdated(previousRate, newRate)` para garantizar trazabilidad on-chain. La tasa activa en el momento de la resolución es la que se aplica, independientemente de la tasa vigente cuando el reto fue creado o financiado.
+Cada reto resuelto con éxito paga una **comisión objetivo** calculada sobre el **pozo** (la suma de depósitos original del reto: `required_deposit × participant_count`), no sobre el monto recuperado ni sobre una porción arbitraria. El porcentaje es un parámetro configurable del contrato, ajustable únicamente por la cuenta administradora mediante `setCommissionRate(rateBps)`, con un **tope de seguridad** `MAX_COMMISSION_BPS = 1000` (10 %): la cuenta administradora no puede fijar una tasa mayor, lo que protege a los participantes de una tasa abusiva. Cada cambio emite el evento `CommissionRateUpdated(previousRate, newRate)` para garantizar trazabilidad on-chain. La tasa activa en el momento de la resolución es la que se aplica, independientemente de la tasa vigente cuando el reto fue creado o financiado.
 
-La lógica del contrato asegura que la comisión efectiva nunca supere el pozo, y permite fijar la tasa en 0 bps (0 %) para absorber el costo operativo temporalmente (ej. campañas de adopción). Valores muy altos (hasta 10.000 bps o 100 %) son posibles en el límite pero disuadirían a los usuarios de participar.
+La tasa puede fijarse en 0 bps (0 %) para absorber el costo operativo temporalmente (por ejemplo, campañas de adopción).
 
-### 8.2 Modelo de comisión dinámica cubierto por rendimiento
+### 8.2 Modelo de pago: comisión objetivo, rendimiento y excedente
 
-El modelo es **dinámico**: el rendimiento generado por el staking (el yield atribuible a ese reto) se aplica **primero** para cubrir la comisión, y la plataforma solo retiene aquello que el yield no alcanza a cubrir. Al resolver, el reto redime sus participaciones en la Tesorería (sección 7.2) y distingue:
+Este modelo se concreta en `DESIGN_DECISIONS.md` (DD-01) y es la **decisión del equipo (opción A)**.
 
-- **principal (pozo):** `required_deposit × participant_count` — lo depositado.
-- **recuperado (recovered):** lo que devuelve la Tesorería al redimir = principal + rendimiento.
-- **yield:** `recuperado − principal`, el rendimiento atribuible a ese reto (justo vía `price_per_share`, sección 7.2).
+Al resolver, el reto redime sus participaciones en la Tesorería (sección 7.2) y se distinguen:
 
-Con la tasa objetivo de la sección 8.1 sobre el pozo:
+- **pozo:** `required_deposit × participant_count` — lo depositado.
+- **recuperado:** lo que devuelve la Tesorería al redimir; es el pozo más el rendimiento atribuible a ese reto (o menos, si la estrategia perdió valor).
 
 ```
-comisión_objetivo = pozo × rateBps / 10 000
-fee_plataforma     = max(comisión_objetivo − yield, 0)   // lo no cubierto por el staking
-pago_al_ganador    = recuperado − fee_plataforma
+pozo      = required_deposit × participant_count
+objetivo  = pozo × rateBps / 10 000
+fee       = min(objetivo, recuperado)
+ganador   = min(pozo, recuperado − fee)
+excedente = recuperado − fee − ganador          → fee_recipient
 ```
 
-Casos:
+La plataforma recibe siempre la comisión objetivo. El rendimiento la financia primero y los participantes solo cubren lo que falte. Lo que sobra después de pagar al ganador y la comisión es el **excedente**, que se transfiere al `fee_recipient`.
 
-- **Sin staking activo (`yield = 0`, situación actual):** `fee_plataforma = comisión_objetivo` y `pago_al_ganador = recuperado − comisión_objetivo`. Se comporta como una comisión plana sobre el pozo.
-- **El staking cubre parte o toda la comisión (`yield ≥ comisión_objetivo`):** `fee_plataforma = 0` y el ganador recibe la totalidad (`principal + yield`). El **excedente de rendimiento sobre la comisión se convierte en bono para el ganador**: no se redirige a ninguna wallet de plataforma ni a la Tesorería (decisión del MVP), lo que además conserva la invariante de la sección 11 de que ningún operador pueda mover fondos a direcciones arbitrarias.
+Ejemplo con `pozo = 100` y tasa del 5 % (`objetivo = 5`):
 
-Este modelo solo modifica la **cantidad** que se abona al ganador (`winner_payout`); no requiere movimientos de fondos nuevos. La comisión efectiva (`fee_plataforma`) se registra en el evento `ChallengeResolved`; en el MVP no existe un mecanismo de cobro de la plataforma (permanece como USDC ocioso en `ChallengePool`). La recolección de ingresos de la plataforma queda fuera del alcance del contrato y se gestionará mediante un cambio Spec-Driven con un mecanismo de cobro restringido.
+| Rendimiento | Recuperado | Fee | Ganador | Excedente |
+| --- | --- | --- | --- | --- |
+| 0 | 100 | 5 | 95 | 0 |
+| 3 | 103 | 5 | 98 | 0 |
+| 5 | 105 | 5 | 100 | 0 |
+| 8 | 108 | 5 | 100 | 3 |
+| pérdida (−10) | 90 | 5 | 85 | 0 |
+
+**Invariantes.** Para cualquier entrada, `ganador ≤ pozo` y `ganador + fee + excedente = recuperado`. Si el canje devuelve cero, la resolución se aborta (`norecover`) en lugar de marcar el reto como Resuelto con un pago nulo. El ingreso de la plataforma por reto es `fee + excedente`.
+
+**Qué significa para los participantes (opción A).** El ganador **nunca recibe más que el pozo** y **puede recibir menos**: cuando el rendimiento no alcanza a cubrir la comisión objetivo, la diferencia sale del pozo. Por eso el README, el pitch y la demo no deben afirmar que el pozo "crece", que no se reduce o que el reto es "sin pérdida" (*no-loss*). A la escala del MVP el rendimiento es real pero pequeño (sección 7.4).
+
+**Recolección de la comisión (fee recipient, patrón `feeTo`):**
+
+- El contrato mantiene una dirección **`fee_recipient`** (por defecto, el `owner` fijado en `init`). La cuenta administradora puede cambiarla con `setFeeRecipient(newRecipient)`; cada cambio emite `FeeRecipientUpdated(previous, new)` para trazabilidad (gobernanza acotada, sección 11).
+- En `confirmResult`, el contrato paga al ganador y transfiere `fee + excedente` **directamente al `fee_recipient`** en la misma transacción, con el estado terminal fijado antes de cualquier transferencia. La comisión **nunca queda retenida como saldo ocioso** en `ChallengePool`.
+- Las únicas transferencias que puede producir una resolución son hacia el ganador y hacia el `fee_recipient`. Un operador no puede elegir ninguno de los dos destinos.
+- El balance del `ChallengePool` queda reservado a fondos de participantes (depósitos parciales en Abierto y reembolsos reclamables). La ganancia acumulada de la plataforma es legible como `USDC.balanceOf(feeRecipient)` y auditable sumando los eventos `ChallengeResolved` (`fee` y `surplus`).
+- La métrica de "comisiones generadas" para la landing/Mini App se deriva off-chain (Worker o script) sumando `fee + surplus` de `ChallengeResolved`.
 
 ### 8.3 Reembolsos
 
 Los retos reembolsados no pagan comisión. El capital devuelto a cada participante incluye la parte proporcional de rendimiento que le corresponde según su participación en la Tesorería durante el periodo en que estuvo depositado.
 
+El reembolso cubre dos orígenes (sección 6.3): (i) reto **Bloqueado** vencido sin consenso — canje de participaciones + `claimRefund` por participante; y (ii) reto **Abierto** cancelado o vencido sin depósito completo — devolución directa de `required_deposit` a cada depositante, sin pasar por la Tesorería ni cobrar comisión. En ambos casos el estado final es `Reembolsado`.
+
 ## 9. Especificación funcional — Backend (Cloudflare Workers)
 
 **Implementado por:** Julio, con integración de las funciones del contrato provista por Moises.
 
-El backend actúa como orquestador entre la interfaz de Telegram y el contrato de Retos. Sus responsabilidades son: recibir y procesar comandos del bot para crear retos e invitar participantes; verificar la identidad del usuario mediante su sesión de Privy antes de aceptar una confirmación de resultado; mantener el estado intermedio de confirmaciones recibidas por reto hasta alcanzar el umbral de consenso definido; construir y enviar las transacciones de resolución al contrato cuando corresponda, utilizando una cuenta operadora dedicada cuya clave se mantiene como secreto gestionado por la plataforma, nunca expuesta en código; y consultar el estado del contrato para informar al grupo de Telegram sobre el progreso del reto.
+El backend actúa como orquestador entre la interfaz de Telegram y el contrato de Retos. Sus responsabilidades son: recibir y procesar comandos del bot para crear retos e invitar participantes; asociar a cada participante con su wallet (en el MVP mediante `/vincular`, sin verificación criptográfica; la verificación con Privy es roadmap, sección 2.2) antes de aceptar su confirmación de resultado; mantener el estado intermedio de confirmaciones recibidas por reto hasta alcanzar el umbral de consenso definido; construir y enviar las transacciones de resolución al contrato cuando corresponda, utilizando una cuenta operadora dedicada cuya clave se mantiene como secreto gestionado por la plataforma, nunca expuesta en código; y consultar el estado del contrato para informar al grupo de Telegram sobre el progreso del reto.
 
 El backend no tiene, en ningún caso, la capacidad de dirigir fondos a una dirección distinta del ganador determinado por el contrato.
 
@@ -597,13 +655,57 @@ Para automatizar el despliegue de fondos inactivos hacia la estrategia de rendim
 
 - **Ejecución basada en Cron:** No expone rutas HTTP públicas. Se activa exclusivamente mediante un trigger cron de Cloudflare (por defecto cada 12 horas).
 - **Aislamiento de Llaves:** Utiliza la llave privada del administrador (`ADMIN_PRIVATE_KEY`), la cual se inyecta como secreto y nunca coexiste con el entorno del bot. Esto asegura que una vulnerabilidad en el bot público no exponga el control de la tesorería.
-- **Política de Barrido:** Lee el balance inactivo en USDC del `TreasuryVault` y, si supera un umbral configurable (ej. 10 USDC), ejecuta `deployToStrategy` seguido de `realizeYield` para actualizar la contabilidad de participaciones.
+- **Configuración por variables de entorno:** ninguna dirección de contrato ni credencial vive en el repositorio ni como valor fijo en `wrangler.toml`. `VAULT_ADDRESS` y `USDC_ADDRESS` se inyectan por `[vars]` en el dashboard de Cloudflare o `dev.vars` en desarrollo local; `ADMIN_PRIVATE_KEY` y `ARBITRUM_RPC_URL` se cargan con `wrangler secret put` (sección 11). La política de barrido (`SWEEP_THRESHOLD_USDC` y el cron `0 */12 * * *`) sí es configuración inmutable del worker.
+- **Política de Barrido (DD-06):** lee el balance inactivo en USDC del `TreasuryVault`. Si el vault está pausado, omite la ejecución. Si el balance inactivo supera el umbral configurable (`SWEEP_THRESHOLD_USDC`, ej. 10 USDC), despliega en la estrategia `max(0, ocioso − totalAssets × SWEEP_BUFFER_BPS / 10 000)`, de modo que al menos `SWEEP_BUFFER_BPS` (por defecto 2000, es decir 20 %) del valor total del vault permanece ocioso como liquidez para reembolsos y retiros rápidos.
+- **Rendimiento en cada ejecución:** llama a `realizeYield` en cada ejecución, también cuando se omite el despliegue. La acreditación interna del vault (sección 7.2) hace que el precio de la participación sea correcto aunque el cron no corra; esta llamada es un refuerzo.
+- **Resultados veraces:** el resultado de cada ejecución es `SKIPPED_PAUSED`, `SKIPPED_BELOW_THRESHOLD`, `DEPLOYED` o `FAILED`. `DEPLOYED` solo se informa cuando la transacción de despliegue se confirmó; un fallo se informa como `FAILED` con su motivo.
+
+### 9.2 Relayer: consenso y envío de transacciones
+
+El relayer es la parte del Worker que cuenta los votos de Telegram y envía `confirmResult` al contrato. Se rige por DD-07 y DD-08:
+
+- **Consenso persistente y atómico.** Los votos de cada reto viven en un **Durable Object por reto**, que ofrece un único escritor y lectura-modificación-escritura atómica. No se usa KV para los votos por su consistencia eventual. Las actualizaciones de Telegram se deduplican por `update_id`.
+- **Ciclo de vida de la transacción.** Cada reto sigue `votando → consenso → enviada(txHash) → confirmada`, con `fallida(motivo)` como rama reintentable. Hay a lo sumo una transacción en vuelo por reto, y una transacción fallida devuelve el reto a un estado desde el que se puede reintentar.
+- **Recibo antes del anuncio.** Tras enviar `confirmResult`, el relayer espera el recibo, comprueba `status = success` y relee `challengeStatus` (debe ser Resuelto) antes de anunciar el resultado al grupo.
+- **Una sola configuración de cadena.** `CHAIN_ID`, `CHAIN_RPC_URL`, `CHALLENGE_POOL_ADDRESS`, `USDC_ADDRESS` y `OPERATOR_PRIVATE_KEY` gobiernan tanto la creación como la confirmación de retos. Las direcciones son variables de entorno; la clave y la URL del RPC son secretos (`wrangler secret put`). Ninguna dirección vive en `wrangler.toml`.
+- **Nonces serializados.** Los envíos de la cuenta operadora se serializan para que dos resoluciones simultáneas no reutilicen un nonce.
+- **Separación de cuentas.** La cuenta operadora (relayer) y la cuenta de administración (Sweeper y vault) son cuentas distintas.
+- **Alcance de la garantía.** El umbral de consenso lo aplica el Worker, no el contrato. Lo que el contrato garantiza es que el ganador sea un participante del reto y que los fondos solo puedan ir al ganador y al `fee_recipient`.
+
+### 9.2 Consenso persistente y ciclo de vida de la transacción de resolución
+
+El conteo de confirmaciones ya no vive en memoria del isolate: cada reto tiene un **Durable Object `ConfirmationStore`** (uno por `challengeId`, respaldado por SQLite) que es el único escritor de su estado. Cada comando se ejecuta como leer, aplicar una transición pura y escribir, de forma serial, así que votos concurrentes no se pisan y exactamente una llamada informa el disparo del consenso. El Worker solo depende de la interfaz `ConsensusGateway`; sin el binding `CONFIRMATION_STORE` cae a una implementación en memoria con un `console.warn` (solo desarrollo).
+
+**Fases.** `collecting → consensus → submitting → submitted → confirmed | failed`, y desde `failed` (o desde un `submitting`/`submitted` con lease vencido) se vuelve a `submitting` con `/reintentar`:
+
+- `collecting`: se reciben votos. El umbral queda fijado por el primer voto y un voto posterior de la misma wallet reemplaza al anterior.
+- `consensus`: el umbral se alcanzó para un ganador. Los votos quedan congelados; un voto tardío no cambia nada.
+- `submitting`: alguien ganó el derecho de envío (`beginSubmit`, un CAS atómico) con un lease de 180 s y un número de intento monótono. A lo sumo hay una tx en vuelo por reto.
+- `submitted`: la tx se difundió y se guardó su `txHash`; el lease se renueva mientras se espera el recibo (tope de 90 s).
+- `confirmed`: el recibo fue exitoso, o la cadena ya mostraba el reto como resuelto. El historial de cada participante se escribe una sola vez, en esta primera confirmación.
+- `failed`: falló el envío, el recibo se revirtió, venció el tiempo, el reto ya estaba reembolsado en la cadena o venció el lease. Guarda un `failureReason`.
+
+**Fencing y recuperación.** Las marcas `markSubmitted`/`markConfirmed`/`markFailed` llevan el número de intento y se rechazan con `stale_attempt` si otro intento tomó el relevo. Si el holder se cae, el lease vence y el siguiente reintento se trata como `failed("lease_expired")` y obtiene un único derecho de envío nuevo. Antes de cada envío se lee `challengeStatus`: Resuelto (2) lleva a `confirmed` sin enviar nada y Reembolsado (3) a `failed("refunded_onchain")`, de modo que reenviar tras un lease vencido no puede liquidar dos veces.
+
+**Camino único de envío.** Toda tx de `confirmResult` pasa por `resolverEnCadena`, que reusa la guarda de `buildConfirmResultCall` (el ganador sale del consenso, nunca de la mención). Dos `/confirmar` simultáneos producen una sola tx y la otra respuesta es «en curso».
+
+**Reintento manual.** `/reintentar <id>` (o `/confirmar` con el reto en `failed`) lo puede ejecutar cualquier participante del reto; un no participante es rechazado y el estado no cambia. No hay reintento automático.
+
+**Idempotencia del webhook.** Cada `update_id` se procesa a lo sumo una vez por chat: un Durable Object `UpdateDedupe` por chat guarda una ventana FIFO de 200 ids y el update se marca antes de enrutarlo. Las redeliveries se reconocen con 200 sin efectos. Si el dedupe falla se procesa igual (falla abierto), porque el CAS de `beginSubmit` ya impide un doble envío on-chain.
+
+**Estado expuesto.** `GET /challenges/:id/status` devuelve, además del conteo, `phase`, `attempt`, `txHash` (cuando hay tx) y `failureReason` (cuando falló).
+
+Fuera de alcance de este módulo (ver DD-08): serialización de nonces de la cuenta operadora y unificación de la configuración de cadena.
 
 ## 10. Especificación funcional — Bot de Telegram y Mini App
 
-**Implementado por:** Julio (bot) y Luishiño (apoyo de frontend en la Mini App).
+**Implementado por:** Julio (bot), Luishiño (Mini App) y Fernando (frontend).
 
-La interfaz completa del producto vive dentro de Telegram, sin requerir instalación de una aplicación externa. El bot gestiona los comandos conversacionales de creación de retos y confirmaciones. La Mini App, embebida dentro de Telegram, gestiona la conexión de wallet mediante Privy, la visualización del estado del pozo y del historial de retos del usuario, y el flujo de depósito, que siempre requiere la firma directa del usuario.
+La interfaz completa del producto vive dentro de Telegram, sin requerir instalación de una aplicación externa. El bot gestiona los comandos conversacionales de creación de retos y confirmaciones. La página de depósito (`packages/nextjs/app/depositar`), que es la Mini App del MVP, gestiona el flujo de depósito, que siempre requiere la firma directa del usuario.
+
+**Flujo de depósito desde un grupo (DD-10).** Los botones `web_app` de Telegram solo funcionan en chats privados, por lo que `/depositar <id>` responde en el grupo con un botón de tipo `url` que abre la página de depósito con el id y el monto del reto. La página lee el estado del reto y los decimales del token directamente de la cadena y pide dos firmas (`approve` y `deposit`) a la wallet del participante en Arbitrum Sepolia; no depende del backend. Un enlace `t.me/<bot>/<app>?startapp=<id>` puede reemplazar a la URL simple cuando la Mini App esté registrada con @BotFather. La wallet embebida con Privy es roadmap (sección 2.2).
+
+Comandos de reto: `/nuevo`, `/abrir`, `/descartar`, `/estado`, `/retos`, `/depositar`, `/confirmar`, `/reembolso`, `/cancelar` (cancela un reto Abierto; solo el creador o un admin del grupo) e `/historial`. La especificación completa está en [`BOT.md`](BOT.md).
 
 ## 11. Seguridad y permisos
 
@@ -612,6 +714,15 @@ La interfaz completa del producto vive dentro de Telegram, sin requerir instalac
 El sistema distingue explícitamente entre acciones que requieren firma directa del usuario y acciones que puede relayar una cuenta operadora del backend. El depósito de fondos siempre requiere firma directa del usuario. La confirmación de resultado puede ser relayada por un operador, pero únicamente como transmisión de una decisión que el usuario ya expresó de forma verificable fuera de la cadena; en ningún caso un operador puede iniciar una transferencia de fondos hacia una dirección distinta de la calculada internamente por el contrato como ganador.
 
 El contrato sigue el patrón de actualizar su estado interno antes de ejecutar cualquier transferencia externa, para prevenir ataques de reentrada. Se establece un monto máximo de depósito por participante como mitigación ante el riesgo de retos con montos desproporcionados. El cambio de estrategia de rendimiento de la Tesorería requiere aprobación administrativa explícita, según lo especificado en la sección 7.3.4. Adicionalmente, dado que `AaveV3Strategy` interactúa con un protocolo externo, la auditoría debe verificar explícitamente que el adaptador solo puede llamar `supply`, `withdraw` y `getReserveAToken` sobre el Pool de Aave, y ninguna otra función (en particular, que no pueda usarse para abrir posiciones de préstamo o exponer la Tesorería a liquidación).
+
+Reglas v7 y v8 que refuerzan la sección:
+
+- **Reembolsos de cancelación/Abierto:** se dirigen siempre a direcciones de participantes ya depositantes, por el monto exacto `required_deposit`. Un operador relaya `cancelChallenge` pero **no puede elegir** el destino ni el monto del reembolso.
+- **Fee recipient como única excepción al destino fijo:** la única transferencia hacia una dirección distinta del ganador/participante es la comisión y el excedente hacia `fee_recipient`. Esa dirección la fija solo la cuenta administradora (`setFeeRecipient`, owner), nunca un operador, y cada cambio queda registrado con `FeeRecipientUpdated`.
+- **Tope de comisión:** `setCommissionRate` rechaza tasas superiores a `MAX_COMMISSION_BPS` (1000, 10 %), de modo que la cuenta administradora no puede fijar una comisión abusiva.
+- **Separación de cuentas:** la cuenta operadora del relayer y la cuenta de administración del Sweeper y del vault son distintas; comprometer el bot no entrega el control de la tesorería.
+- **Roster válido:** `createChallenge` impide crear retos que no puedan bloquearse (sección 6.2).
+- **Cancelación por derecho off-chain:** el permiso del usuario final (creador/admin en Telegram) a cancelar se valida en el Worker; el contrato solo exige ser operador. Esto mantiene la superficie on-chain mínima sin abrir autorización arbitraria de movimientos.
 
 ## 12. Off-ramp a moneda fiat
 
@@ -626,19 +737,25 @@ El contrato de Retos no participa en la conversión de fondos a moneda local: su
 
 ## 14. Plan de trabajo por rol
 
-- **Moises (Backend y Smart Contract):** especificación y desarrollo del contrato de Retos y del contrato de Tesorería, implementación de `AaveV3Strategy` y `MockYieldStrategy` conforme a 7.3, definición del modelo de comisiones, integración de las funciones del contrato con el backend de Cloudflare Workers, despliegue en Arbitrum Sepolia.
-- **Julio (Landing, bot y Cloudflare Workers):** desarrollo de la landing informativa, del bot de Telegram, del backend orquestador y del Sweeper automatizado, incluyendo la gestión de cuentas operadoras/admin y su integración con los contratos.
-- **Luishiño (Auditoría y Frontend):** auditoría de seguridad del contrato conforme a la sección 11, con atención específica al alcance de `AaveV3Strategy` (7.3.2); apoyo en el desarrollo de la Mini App de Telegram según disponibilidad de tiempo.
-- **William (Pitch):** desarrollo del video pitch y del pitch deck, incorporando la narrativa de negocio actualizada (custodia transparente y caso cross-border como argumentos centrales, integración real con Aave V3 como evidencia de implementación funcional, no solo conceptual).
+- **Moises (Contratos):** especificación y desarrollo de `ChallengePool` y `TreasuryVault`, implementación de `AaveV3Strategy` y `MockYieldStrategy` conforme a 7.3, modelo de comisiones (sección 8), validación del roster, cancelación y despliegue coordinado en Arbitrum Sepolia (DD-09).
+- **Julio (Bot y relayer):** bot de Telegram y Worker orquestador: consenso persistente, envío de transacciones con recibo confirmado, configuración única de cadena y comandos de reto, incluida la cancelación (sección 9.2).
+- **Fernando (Frontend):** landing y pantallas del flujo de depósito.
+- **Luishiño (Seguridad y Mini App):** revisión de seguridad de los contratos conforme a la sección 11, con atención específica al alcance de `AaveV3Strategy` (7.3.2); Sweeper y su clave de administración (9.1); publicación de la página de depósito y soporte de wallet móvil.
+- **William (Negocio, demo y pitch):** narrativa de negocio basada en lo que el producto hace (custodia transparente en contrato, rendimiento real en Aave V3 como evidencia de implementación), demo, video pitch y pitch deck. Los materiales no afirman que el pozo crece ni que el reto es *no-loss* (sección 8.2).
 
 ## 15. Riesgos y mitigaciones
 
 | Riesgo | Mitigación |
 | --- | --- |
 | El rendimiento generado durante la hackathon es insuficiente para demostrarse en vivo en términos de monto | Demostrar la comisión porcentual como mecanismo principal de negocio; demostrar el flujo completo contra Aave V3 en testnet como evidencia de integración real, independientemente del monto generado |
-| Falta de liquidez momentánea en el Pool de Aave impide un `withdraw` completo | Documentar como riesgo conocido; para el MVP, el monto máximo de depósito por participante (sección 11) mantiene la exposición baja frente a la liquidez típica del mercado de USDC en Aave Arbitrum |
+| Falta de liquidez momentánea en el Pool de Aave impide un `withdraw` completo | Documentar como riesgo conocido; el colchón de liquidez del Sweeper (9.1) deja saldo ocioso para retiros pequeños |
 | Tiempo de aprendizaje de Stylus o de la integración cross-contract con Aave | Empezar la integración de `AaveV3Strategy` en un contrato aislado y probado de forma independiente antes de conectarlo a `TreasuryVault`, siguiendo el plan de trabajo de la sección 14 |
 | Validación de resultados no completamente objetiva en el modo auto-consenso | Documentar esta limitación de forma transparente como decisión de diseño consciente para el MVP |
+| El ganador puede recibir menos que el pozo cuando el rendimiento no cubre la comisión (opción A, sección 8.2) | Comunicarlo en README, pitch y demo; no afirmar *no-loss*; la tasa tiene un tope del 10 % |
+| La wallet de cada participante se asocia con `/vincular` sin verificación criptográfica | Aceptable entre personas que se conocen en el MVP; la verificación con Privy es roadmap (sección 2.2) y debe documentarse como limitación |
+| El umbral de consenso lo aplica el Worker, no el contrato: un operador comprometido podría ignorarlo | El contrato garantiza que el ganador sea participante y que los fondos solo vayan al ganador y al `fee_recipient`; el peor caso es un ganador equivocado, no la fuga de fondos. Cuentas operadora y administradora separadas (9.2) |
+| Un solo Worker y una sola cuenta operadora firman las resoluciones | Consenso persistente y reintento (9.2); la cuenta operadora es revocable con `removeOperator` |
+| El tope de depósito vigente (`MAX_DEPOSIT_WEI`) está expresado en 10^19 unidades base, sin efecto práctico sobre un USDC de 6 decimales | Se redefine en unidades de USDC junto con la validación del roster (#20) |
 
 ## 16. Historial de cambios del documento
 
@@ -647,4 +764,36 @@ El contrato de Retos no participa en la conversión de fondos a moneda local: su
 - **v3:** se migró a la implementación final en Rust (Stylus) con el contrato `ChallengePool` real. El pozo retiene todo el yield acumulado sobre el capital. La comisión base se cobra sobre el 100% del valor recuperado para costear el orquestador off-chain.
 - **v4:** comisión configurable post-despliegue: evento `CommissionRateUpdated`, vista `commissionRate()`, script `set-rate.ts`, y prueba de integración con cambio de tasa.
 - **v5:** define la implementación concreta y obligatoria de la estrategia de rendimiento — Aave V3 en Arbitrum (direcciones distintas en mainnet y Sepolia según aave-address-book), con las funciones exactas usadas (`supply`, `withdraw`, `getReserveAToken`), el rol de `MockYieldStrategy` acotado exclusivamente a pruebas unitarias, y la gobernanza de cambio de estrategia (secciones 7.3 y 11).
-- **v6 (actual):** alineación del documento con el código real de los contratos. Se corrige el ABI de `TreasuryVault` (`realizeYield()` sin argumentos y funciones de gobernanza/estrategia que faltaban), se aclara que el ABI de `ChallengePool` no incorpora modo de resolución/juez (la resolución la cierra `confirmResult` del operador), se fija la instancia exacta de USDC usada en testnet (Circle, Arbitrum Sepolia `0x75faf114eafb1BDbe2f0316DF893fd58CE46AA4d`) como el mismo activo de `ChallengePool`, `TreasuryVault` y la estrategia de rendimiento, y se **restaura explícitamente el modelo de comisión dinámica cubierto por rendimiento** (sección 8.2): con `yield = 0` se comporta como comisión plana sobre el pozo, y si el staking supera a la comisión, el excedente es un bono para el ganador (política elegida para el MVP, sin recolección de ingresos de plataforma). La implementación de este modelo se realizará como cambio Spec-Driven (OpenSpec), no sobre el código actual. Adicionalmente, incluye el modelo de arquitectura completa con el Sweeper Worker (secciones 5.3-5.6 y 9.1).
+- **v6:** alineación del documento con el código real de los contratos. Se corrige el ABI de `TreasuryVault` (`realizeYield()` sin argumentos y funciones de gobernanza/estrategia que faltaban), se aclara que el ABI de `ChallengePool` no incorpora modo de resolución/juez (la resolución la cierra `confirmResult` del operador), se fija la instancia exacta de USDC usada en testnet (Circle, Arbitrum Sepolia `0x75faf114eafb1BDbe2f0316DF893fd58CE46AA4d`) como el mismo activo de `ChallengePool`, `TreasuryVault` y la estrategia de rendimiento, y se **restaura explícitamente el modelo de comisión dinámica cubierto por rendimiento** (sección 8.2): con `yield = 0` se comporta como comisión plana sobre el pozo, y si el staking supera a la comisión, el excedente es un bono para el ganador (política elegida para el MVP, sin recolección de ingresos de plataforma). La implementación de este modelo se realizará como cambio Spec-Driven (OpenSpec), no sobre el código actual. Adicionalmente, incluye el modelo de arquitectura completa con el Sweeper Worker (secciones 5.3-5.6 y 9.1).
+- **v7:** incorpora decisiones de producto: (1) **Fee recipient** — la comisión se transfiere en `confirmResult` a `fee_recipient`, configurable con `setFeeRecipient`, eliminando la retención de ingresos en `ChallengePool` y la mezcla con fondos de participantes (§8.2, §6.6, §11); (2) **Cancelación en estado Abierto** — `cancelChallenge` reembolsa el 100% a cada depositante usando la lista iterable de participantes y reutiliza el estado terminal `Reembolsado` con el evento `ChallengeCancelled`; (3) **Reembolso en Abierto post-plazo** — `refund` acepta también Abierto vencido sin depósito completo, como red de seguridad para depósitos parciales; y (4) **Configuración por variables de entorno** — ninguna dirección de contrato ni credencial vive en `wrangler.toml` ni en el repositorio (§9.1). Se corrige además la afirmación de la sección 6.3 sobre "ningún fondo comprometido" en Abierto (existen depósitos parciales). El tratamiento del excedente de rendimiento introducido en v7 (retenido en el pool) queda reemplazado en v8.
+- **v8 (actual):** cierra las decisiones de diseño de `DESIGN_DECISIONS.md` y las vuelca en el SDD: (1) **modelo de pago** (DD-01, opción A): `fee = min(objetivo, recuperado)`, `ganador = min(pozo, recuperado − fee)` y excedente al `fee_recipient`, que sustituye a la fórmula de v7 (§8.2); el ganador nunca recibe más que el pozo y puede recibir menos, y los materiales no deben afirmar *no-loss*; (2) **tope de comisión** `MAX_COMMISSION_BPS = 1000` (§8.1); (3) **fee recipient** recibe también el excedente (DD-02); (4) **validación del roster** al crear un reto (DD-03, §6.2); (5) **cancelación y reembolso en Abierto** (DD-04, §6.3); (6) **acreditación de rendimiento** en depósito y canje, con reconciliación de pérdidas (DD-05, §7.2); (7) **política del Sweeper** con colchón de liquidez y resultados veraces (DD-06, §9.1); (8) **relayer confiable**: consenso en Durable Object, recibo confirmado, configuración única y nonces serializados (DD-07 y DD-08, §9.2); (9) **despliegue único** (DD-09) y **flujo de depósito desde grupos** (DD-10, §10). Se corrigen los roles del equipo (§4, §14), el diagrama de permisos de §5.3.1 (las funciones de administración de `ChallengePool` son del owner, no del operador) y se agregan riesgos y limitaciones conocidas (§15). La sección 17 indica el estado de implementación de cada cambio.
+
+## 17. Relación de cambio (v7 y v8), estado de implementación e impacto
+
+Cada cambio está **implementado** (existe en el código) o **pendiente** (especificado aquí y asignado a una issue del milestone ArbitrumSingapur). El estado se verificó contra el código al publicar la v8.
+
+| Cambio | Decisión | Componente | Estado | Issue |
+| --- | --- | --- | --- | --- |
+| Modelo de pago: fee, ganador y excedente; abortar si el canje devuelve cero | DD-01 | `ChallengePool` | Pendiente. Hoy `resolve_payout` aplica la tasa sobre lo recuperado y la comisión queda en el pool | #19 |
+| Fee recipient (`setFeeRecipient`, pago directo de fee y excedente) | DD-02 | `ChallengePool` | Pendiente | #19 |
+| Tope de comisión `MAX_COMMISSION_BPS` | DD-01 | `ChallengePool` | Pendiente. Hoy `setCommissionRate` no tiene tope | #19 |
+| Validación del roster al crear un reto | DD-03 | `ChallengePool` | Pendiente | #20 |
+| Cancelación en Abierto y reembolso en Abierto vencido | DD-04 | `ChallengePool` | Pendiente. Hoy `refund` exige estado Bloqueado | #21 |
+| Acreditación de rendimiento en depósito y canje; reconciliación de pérdidas | DD-05 | `TreasuryVault` | Pendiente. Hoy solo `realizeYield` manual | #22 |
+| Política del Sweeper: colchón, resultados veraces y `realizeYield` en cada ejecución | DD-06 | Sweeper | Pendiente | #30 |
+| Configuración del Sweeper por variables de entorno | v7 | Sweeper | Implementado: `wrangler.toml` del Sweeper no contiene direcciones | — |
+| Consenso persistente (Durable Object) y ciclo de vida de la transacción | DD-07 | Worker | Pendiente. Hoy los votos viven en memoria | #26 |
+| Relayer: recibo confirmado, configuración única y nonces serializados | DD-08 | Worker | Pendiente. Incluye sacar las direcciones de `wrangler.toml` del Worker | #27 |
+| Comando `/cancelar` y `creatorId` | DD-04 | Worker | Pendiente | #29 |
+| ABI v8 y cliente de cadena del Worker | DD-02, DD-04 | Worker | Pendiente | #28 |
+| Despliegue único de la v8 | DD-09 | Contratos y consumidores | Pendiente | #24 |
+| Flujo de depósito desde grupos (botón `url` y página de depósito) | DD-10 | Bot y página de depósito | Implementado. Falta la publicación y el soporte de wallet móvil | #31, #32 |
+
+**Afectaciones transversales de la v8:**
+
+- **`packages/stylus`:** toda modificación de `ChallengePool` o `TreasuryVault` requiere `cargo fmt`, `cargo clippy`, `cargo stylus check`, `cargo test` y `cargo stylus export-abi` (`AGENTS.md`). Los contratos **no son actualizables** y su layout de almacenamiento cambia: se redespliegan juntos (DD-09) y la nueva dirección y ABI se propagan a `packages/worker/contracts/*` (incluido `AddressContracts.json`), a las variables de entorno del Worker, el Sweeper y la Mini App, y a los scripts.
+- **`packages/worker`:** consume el ABI nuevo (`cancelChallenge`, `feeRecipient`, eventos), guarda los votos en Durable Objects y confirma recibos. `/estado` y `/retos` reflejan el origen de un estado `Reembolsado` (cancelado o vencido) a partir de `ChallengeCancelled` y `ChallengeRefunded`. `RetoRegistrado` incorpora `creatorId`.
+- **`packages/sweeper`:** incorpora el colchón (`SWEEP_BUFFER_BPS`) y los resultados `FAILED`; `VAULT_ADDRESS`, `USDC_ADDRESS`, `ADMIN_PRIVATE_KEY` y `ARBITRUM_RPC_URL` se cargan por `vars`/`dev.vars`/`wrangler secret put`, nunca como valores fijos.
+- **`packages/nextjs` (página de depósito):** depende de `NEXT_PUBLIC_CHALLENGE_POOL_ADDRESS`, `NEXT_PUBLIC_USDC_ADDRESS` y `NEXT_PUBLIC_CHAIN_RPC_URL`; al redesplegar el pool deben apuntar a la nueva dirección. Opcional: mostrar "comisiones generadas" sumando `fee + surplus` de `ChallengeResolved`.
+- **Seguridad (Luishiño):** la sección 11 incorpora las reglas v7 y v8; verificar que `cancelChallenge` nunca permita elegir destinatario, que `setFeeRecipient` y `setCommissionRate` estén acotadas al owner y al tope, y que las cuentas operadora y administradora sean distintas.
+- **Pitch y demo (William):** la demo puede mostrar el fee recipient recibiendo la comisión real y la cancelación en Abierto. Ningún material afirma que el pozo crece o que el reto es *no-loss*.
