@@ -116,7 +116,7 @@ async function cargoDeploy(
   console.log(`\n🚀 Desplegando ${name}…`);
   const mirror = MIRRORS.find((m) => m.contractName === name);
   const script: string[] = [];
-  if (mirror) {
+  if (REPRODUCIBLE && mirror) {
     // Testnet (reproducible): desplegar desde un clon del repo espejo de GitHub.
     // El mirror es exactamente lo que Arbiscan clona al verificar (LF, raíz = crate),
     // así el bytecode desplegado coincide byte a byte con el rebuild del verificador.
@@ -130,8 +130,7 @@ async function cargoDeploy(
     script.push(`mkdir -p ${TMP_WORKSPACE}/work`);
     script.push(`cp -r '${REPO_ROOT}/rust-toolchain.toml' '${REPO_ROOT}/Stylus.toml' ${TMP_WORKSPACE}/work/`);
     script.push(`mkdir -p ${TMP_WORKSPACE}/work/packages/stylus/`);
-    script.push(`cp -r '${REPO_ROOT}/packages/stylus/contracts' ${TMP_WORKSPACE}/work/packages/stylus/`);
-    script.push(`rm -rf ${TMP_WORKSPACE}/work/packages/stylus/contracts/target`);
+    script.push(`rsync -a --exclude 'target' '${REPO_ROOT}/packages/stylus/contracts' ${TMP_WORKSPACE}/work/packages/stylus/`);
     script.push(`cd ${TMP_WORKSPACE}/work/packages/stylus/contracts/${name}`);
     script.push(`cp ${TMP_WORKSPACE}/work/Stylus.toml ${TMP_WORKSPACE}/work/rust-toolchain.toml .`);
   }
@@ -161,6 +160,24 @@ async function initContracts(
   const strategy: InitStrategy = new ethers.Contract(strategyAddr, STRATEGY_ABI, owner) as unknown as InitStrategy;
 
   console.log("\n── Inicializando contratos ──");
+
+  // 0. MockUsdc.init(...) si estamos en entorno con mocks
+  if (usaMock) {
+    console.log("  MockUsdc.init('USD Coin', 'USDC', 6)…");
+    try {
+      const mockUsdc = new ethers.Contract(
+        usdcAddr,
+        ["function init(string,string,uint256) returns ()"],
+        owner,
+      );
+      const tx = await (mockUsdc as any).init("USD Coin", "USDC", 6);
+      await tx.wait();
+      console.log("    ✔ ok");
+    } catch (err) {
+      const msg = err instanceof Error ? err.message.split("\n")[0] : String(err);
+      console.log(`    ⚠ ${msg} (¿ya estaba inicializado?)`);
+    }
+  }
 
   // 1. TreasuryVault.init(usdc)
   console.log("  TreasuryVault.init(usdc)…");

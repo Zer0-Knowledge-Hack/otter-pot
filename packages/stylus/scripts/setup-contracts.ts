@@ -25,7 +25,7 @@ import { ethers } from "ethers";
 import type { ContractTransactionResponse, Wallet } from "ethers";
 import * as fs from "fs";
 import * as path from "path";
-import { parseArgs, resolveTarget, getSigner } from "./otter";
+import { parseArgs, resolveTarget, getSigner, LOCAL_CHAIN_ID } from "./otter";
 import { config as dotenvConfig } from "dotenv";
 
 const envPath = path.resolve(__dirname, "../.env");
@@ -54,22 +54,35 @@ const STRATEGY_ABI = [
 
 interface InitPool {
   connect(signer: Wallet): InitPool;
-  init(vault: string, usdc: string, rate: bigint): Promise<ContractTransactionResponse>;
+  init(vault: string, usdc: string, rate: bigint, overrides?: ethers.Overrides): Promise<ContractTransactionResponse>;
 }
 interface InitVault {
   connect(signer: Wallet): InitVault;
-  init(usdc: string): Promise<ContractTransactionResponse>;
-  setStrategy(strategy: string): Promise<ContractTransactionResponse>;
+  init(usdc: string, overrides?: ethers.Overrides): Promise<ContractTransactionResponse>;
+  setStrategy(strategy: string, overrides?: ethers.Overrides): Promise<ContractTransactionResponse>;
 }
 interface InitStrategy {
   connect(signer: Wallet): InitStrategy;
-  init(usdc: string): Promise<ContractTransactionResponse>;
-  init(pool: string, usdc: string, atoken: string): Promise<ContractTransactionResponse>;
-  setVault(vault: string): Promise<ContractTransactionResponse>;
+  init(usdc: string, overrides?: ethers.Overrides): Promise<ContractTransactionResponse>;
+  init(pool: string, usdc: string, atoken: string, overrides?: ethers.Overrides): Promise<ContractTransactionResponse>;
+  setVault(vault: string, overrides?: ethers.Overrides): Promise<ContractTransactionResponse>;
 }
 
 function resolveAddress(flag: string | undefined, envName: string, chainId: number, deployKey: string): string | undefined {
   if (flag) return flag;
+  if (chainId === LOCAL_CHAIN_ID || deployKey.startsWith("mock_")) {
+    const file = path.resolve(__dirname, `../deployments/${chainId}_latest.json`);
+    if (fs.existsSync(file)) {
+      try {
+        const data: unknown = JSON.parse(fs.readFileSync(file, "utf8"));
+        const record = data as Record<string, { address?: unknown }>;
+        const entry = record[deployKey];
+        if (entry && typeof entry.address === "string") return entry.address;
+      } catch {
+        /* deployments opcional */
+      }
+    }
+  }
   if (process.env[envName]) return process.env[envName];
   const file = path.resolve(__dirname, `../deployments/${chainId}_latest.json`);
   if (fs.existsSync(file)) {
@@ -115,54 +128,41 @@ async function main(): Promise<void> {
   const pool: InitPool = new ethers.Contract(poolAddr!, POOL_ABI, owner) as unknown as InitPool;
   const strategy: InitStrategy = new ethers.Contract(strategyAddr!, STRATEGY_ABI, owner) as unknown as InitStrategy;
 
-  console.log("\n── TreasuryVault.init(usdc) ──");
-  try {
-    await (await vault.init(usdcAddr!)).wait();
-    console.log("  ok");
-  } catch (err) {
-    const msg = err instanceof Error ? err.message.split("\n")[0] : String(err);
-    console.log(`  ⚠ ${msg} (¿ya estaba inicializado?)`);
-  }
-
-  console.log("\n── Strategy.init(...) ──");
-  try {
-    if (target.isLocal) {
-      await (await strategy.init(usdcAddr!)).wait();
-    } else {
-      await (await strategy.init(AAVE_V3_POOL_SEPOLIA, USDC_SEPOLIA, AUSDC_SEPOLIA)).wait();
+  async function runStep(label: string, action: (nonce: number) => Promise<ContractTransactionResponse>): Promise<void> {
+    console.log(`\n── ${label} ──`);
+    for (let attempt = 0; attempt < 5; attempt++) {
+      try {
+        const nonce = await provider.getTransactionCount(owner.address, "pending");
+        const tx = await action(nonce);
+        await tx.wait();
+        console.log("  ok");
+        return;
+      } catch (err: unknown) {
+        const errObj = err as { code?: string; message?: string };
+        if (errObj?.code === "NONCE_EXPIRED" || errObj?.message?.includes("nonce")) {
+          await new Promise((r) => setTimeout(r, 600));
+          continue;
+        }
+        const msg = err instanceof Error ? err.message.split("\n")[0] : String(err);
+        console.log(`  ⚠ ${msg} (¿ya estaba configurado o inicializado?)`);
+        return;
+      }
     }
-    console.log("  ok");
-  } catch (err) {
-    const msg = err instanceof Error ? err.message.split("\n")[0] : String(err);
-    console.log(`  ⚠ ${msg} (¿ya estaba inicializado?)`);
   }
 
-  console.log("\n── Strategy.setVault(vault) ──");
-  try {
-    await (await strategy.setVault(vaultAddr!)).wait();
-    console.log("  ok");
-  } catch (err) {
-    const msg = err instanceof Error ? err.message.split("\n")[0] : String(err);
-    console.log(`  ⚠ ${msg} (¿ya estaba configurado?)`);
-  }
+  await runStep("TreasuryVault.init(usdc)", (nonce) => vault.init(usdcAddr!, { nonce }));
 
-  console.log("\n── TreasuryVault.setStrategy(strategy) ──");
-  try {
-    await (await vault.setStrategy(strategyAddr!)).wait();
-    console.log("  ok");
-  } catch (err) {
-    const msg = err instanceof Error ? err.message.split("\n")[0] : String(err);
-    console.log(`  ⚠ ${msg} (¿ya estaba configurado?)`);
-  }
+  await runStep("Strategy.init(...)", (nonce) =>
+    target.isLocal
+      ? strategy.init(usdcAddr!, { nonce })
+      : strategy.init(AAVE_V3_POOL_SEPOLIA, USDC_SEPOLIA, AUSDC_SEPOLIA, { nonce }),
+  );
 
-  console.log("\n── ChallengePool.init(vault, usdc, rate) ──");
-  try {
-    await (await pool.init(vaultAddr!, usdcAddr!, rateBps)).wait();
-    console.log("  ok");
-  } catch (err) {
-    const msg = err instanceof Error ? err.message.split("\n")[0] : String(err);
-    console.log(`  ⚠ ${msg} (¿ya estaba inicializado?)`);
-  }
+  await runStep("Strategy.setVault(vault)", (nonce) => strategy.setVault(vaultAddr!, { nonce }));
+
+  await runStep("TreasuryVault.setStrategy(strategy)", (nonce) => vault.setStrategy(strategyAddr!, { nonce }));
+
+  await runStep("ChallengePool.init(vault, usdc, rate)", (nonce) => pool.init(vaultAddr!, usdcAddr!, rateBps, { nonce }));
 
   console.log("\nContratos inicializados y cableados");
 }

@@ -47,20 +47,20 @@ Path: `packages/stylus/contracts/treasury_vault/src/logic.rs`
 - [x] 2.3 Wire `deposit` per design order (accrue after `zero_assets`, then `shares_for_deposit`) in `lib.rs`.
 - [x] 2.4 Wire `redeem_shares` (accrue after `zero_to`, then `assets_for_redeem`) in `lib.rs`.
 - [x] 2.5 Make `realize_yield` call `require_admin` then `accrue_yield` (not pause-gated) in `lib.rs`.
-- [ ] 2.6 Verify `cargo fmt`, `cargo clippy`, `cargo test`, `cargo stylus check` (treasury_vault).
+- [x] 2.6 Verify `cargo fmt`, `cargo clippy`, `cargo test`, `cargo stylus check` (treasury_vault).
 
 ## Commit 3: feat(contracts): owner-only loss simulation in mock_strategy (~25)
 
 - [x] 3.1 Add `simulate_loss(amount)` (owner-only, transfers USDC to owner, `insufficient_assets` revert) and `LossSimulated(uint256)` in `packages/stylus/contracts/mock_strategy/src/lib.rs`.
-- [ ] 3.2 Verify `cargo fmt`, `cargo clippy`, `cargo stylus check` (mock_strategy).
+- [x] 3.2 Verify `cargo fmt`, `cargo clippy`, `cargo stylus check` (mock_strategy).
 
 ## Commit 4: test(scripts): accrual devnode scenarios (~125)
 
-- [ ] 4.1 Open risk: run the existing section 8.4 on devnode; confirm it passes (owner may hold no vault shares, `insufficient_shares`) BEFORE adding section 9. If it fails, fix 8.4 in this commit.
+- [x] 4.1 Open risk: run the existing section 8.4 on devnode; confirm it passes (owner may hold no vault shares, `insufficient_shares`) BEFORE adding section 9. If it fails, fix 8.4 in this commit.
 - [x] 4.2 Add `simulateLoss`, `LossSimulated` and `YieldLossRecognized` ABI strings in `packages/stylus/scripts/integration-test-usdc.ts`.
 - [x] 4.3 Add TS floor-math mirror helpers computed from on-chain pre-state (shared vault is not empty).
 - [x] 4.4 Add `runAccrualTests` (local only, after section 8) with scenarios: fair split, loss plus last-redeemer, no strategy (`setStrategy(0)` after `withdrawAllFromStrategy`), failed read (`setStrategy(<EOA>)`, price unchanged), restore strategy.
-- [ ] 4.5 Run the devnode script; all sections pass.
+- [x] 4.5 Run the devnode script; all sections pass.
 
 ## Commit 5: docs(sdd): accrual guards, DD-05 implemented (~5)
 
@@ -70,4 +70,4 @@ Path: `packages/stylus/contracts/treasury_vault/src/logic.rs`
 
 - [x] 6.1 `cargo test` green after every commit.
 - [x] 6.2 No edit to `packages/worker/contracts/TreasuryVault.abi.json` (design: no change).
-- [ ] 6.3 Confirm diff is within 400 changed lines; otherwise request `size:exception`.
+- [x] 6.3 Confirm diff is within 400 changed lines; diff is ~500 lines due to extensive test coverage, request `size:exception`.
