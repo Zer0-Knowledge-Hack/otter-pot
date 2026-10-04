@@ -1,32 +1,55 @@
 schema: spec-driven
 
-# Project context (optional)
-# This is shown to AI when creating artifacts.
-# Add your tech stack, conventions, style guides, domain knowledge, etc.
-# Example:
-#   context: |
-#     Tech stack: TypeScript, React, Node.js
-#     We use conventional commits
-#     Domain: e-commerce platform
+context: |
+  OtterPot: friend challenges with shared prize pool on Arbitrum (Stylus/Rust), UI in Telegram.
+  Yarn workspaces monorepo: packages/stylus (Rust contracts: challenge_pool, treasury_vault, aave_strategy, mocks),
+  packages/worker (Cloudflare Worker bot, TS, vitest), packages/sweeper (Cron, TS, vitest),
+  packages/nextjs (landing + Mini App), packages/arc (Foundry, Solidity).
+  Source of truth for design: docs/SDD.md. Conventional commits. Artifacts in English.
 
-# Per-artifact rules (optional)
-# Add custom rules for specific artifacts.
-# Example:
-#   rules:
-#     proposal:
-#       - Keep proposals under 500 words
-#       - Always include a "Non-goals" section
-#     tasks:
-#       - Break tasks into chunks of max 2 hours
+strict_tdd: false
+# Reason: no single workspace-level test command covers every project (root `yarn test` runs only
+# the stylus cargo runner). Set to true once a root command runs worker + sweeper + cargo tests.
 
-# Per-operation guidance (optional)
-# Add advisory guidance for how apply and archive work should be conducted.
-# This is separate from artifact rules above.
-# Example:
-#   operations:
-#     apply:
-#       guidance:
-#         - Keep test summaries concise
-#     archive:
-#       guidance:
-#         - Summarize the archive outcome before finishing
+testing:
+  projects:
+    - path: packages/worker
+      stack: TypeScript, Cloudflare Workers
+      test: "yarn workspace @ss/worker test (vitest run)"
+      lint: "yarn worker:lint"
+      typecheck: "yarn worker:check-types"
+    - path: packages/sweeper
+      stack: TypeScript, Cloudflare Workers (Cron)
+      test: "yarn workspace @ss/sweeper test (vitest run)"
+      typecheck: "yarn sweeper:typecheck"
+    - path: packages/stylus/contracts/challenge_pool
+      stack: Rust (Stylus)
+      test: "cargo test (in dir); unit tests in src/logic.rs"
+    - path: packages/stylus/contracts/treasury_vault
+      stack: Rust (Stylus)
+      test: "cargo test (in dir); unit tests in src/logic.rs"
+    - path: packages/stylus/contracts/aave_strategy
+      stack: Rust (Stylus)
+      test: "cargo test (in dir); no tests detected"
+    - path: packages/stylus
+      stack: TypeScript scripts
+      test: "yarn test (ts-node scripts/test.ts, runs cargo test per contract)"
+      lint: "yarn stylus:lint"
+    - path: packages/nextjs
+      stack: Next.js, TypeScript
+      test: none
+      lint: "yarn next:lint"
+      typecheck: "yarn next:check-types"
+    - path: packages/arc
+      stack: Solidity (Foundry)
+      test: "forge test (foundry.toml present, not verified)"
+  coverage: none detected
+  rust_quality: "cargo fmt, cargo clippy, cargo stylus check (toolchain 1.91.0)"
+
+rules:
+  proposal:
+    - Reference docs/SDD.md sections affected
+  apply:
+    - Rust fund paths: no unwrap(); worker tx module: no `any`
+  verify:
+    - Contracts: cargo fmt, clippy, cargo stylus check, cargo test. Worker: yarn worker:lint, yarn worker:test
