@@ -14,6 +14,64 @@
  */
 
 import { decodeErrorResult, parseAbi } from "viem";
+import type { Hex } from "viem";
+
+// ─── Errores tipados de la transacción ───────────────────────────────────────
+
+/** Escrituras que el worker firma con la cuenta operadora. */
+export type OperacionDeEscritura = "confirmResult" | "createChallenge" | "refund";
+
+const NOMBRE_DE_OPERACION: Record<OperacionDeEscritura, string> = {
+  confirmResult: "resolución del reto",
+  createChallenge: "creación del reto",
+  refund: "reembolso del reto",
+};
+
+/** La tx se minó pero con `receipt.status === "reverted"`. */
+export class TransaccionRevertidaError extends Error {
+  constructor(
+    readonly operacion: OperacionDeEscritura,
+    readonly txHash: Hex,
+  ) {
+    super(`La transacción de ${operacion} fue revertida por la cadena (${txHash})`);
+    this.name = "TransaccionRevertidaError";
+  }
+}
+
+/** La tx se minó con éxito pero el contrato no reporta el reto como Resuelto. */
+export class RetoNoResueltoError extends Error {
+  constructor(
+    readonly challengeId: bigint,
+    readonly estadoObservado: number,
+    readonly txHash: Hex,
+  ) {
+    super(`El reto ${challengeId} quedó en el estado ${estadoObservado} en vez de Resuelto (${txHash})`);
+    this.name = "RetoNoResueltoError";
+  }
+}
+
+/** Falló el envío, la espera del recibo (RPC, timeout) o la relectura posterior. */
+export class EnvioFallidoError extends Error {
+  readonly cause: unknown;
+
+  constructor(
+    readonly operacion: OperacionDeEscritura,
+    cause: unknown,
+  ) {
+    super(`Falló el envío de ${operacion}: ${textoDeCausa(cause)}`);
+    this.name = "EnvioFallidoError";
+    this.cause = cause;
+  }
+}
+
+/** Texto corto de una causa: prefiere el `shortMessage` de viem al volcado largo. */
+function textoDeCausa(causa: unknown): string {
+  if (typeof causa === "object" && causa !== null) {
+    const corto = (causa as { shortMessage?: unknown }).shortMessage;
+    if (typeof corto === "string" && corto !== "") return corto;
+  }
+  return causa instanceof Error ? causa.message : String(causa);
+}
 
 /**
  * ABI de los custom errors del contrato. Verificado contra
@@ -63,6 +121,32 @@ const ALIAS_STYLUS: Record<string, string> = {
   // El Rust valida el monto exacto; el Solidity ya no puede fallar así porque
   // el `transferFrom` mueve exactamente `requiredDeposit`.
   incorrect_deposit_amount: "AlreadyDeposited",
+
+  // Códigos cortos que el contrato Stylus emite de verdad (`Err(Vec<u8>)`), tomados
+  // de `challenge_pool/src/{lib,logic}.rs` y `treasury_vault`. Los nombres largos de
+  // arriba no se emiten nunca; se conservan por compatibilidad.
+  no_op: "NotAnOperator",
+  nopart: "ParticipantsMissingOrNotParticipant",
+  dep0: "ZeroDeposit",
+  depmax: "DepositExceedsMaximum",
+  pay: "TransferFailed",
+  refpay: "TransferFailed",
+  pull: "TransferFailed",
+  vred: "TreasuryCallFailed",
+  vdep: "TreasuryCallFailed",
+  appr: "TreasuryCallFailed",
+  noref: "NotRefunded",
+  inited: "AlreadyInitialized",
+  vault0: "VaultIsZeroAddress",
+  notopen: "ChallengeNotOpen",
+  notlocked: "ChallengeNotLocked",
+  deposited: "AlreadyDeposited",
+  incdep: "IncorrectDeposit",
+  winzero: "WinnerIsZeroAddress",
+  winpart: "WinnerNotParticipant",
+  nodln: "DeadlineNotReached",
+  claimed: "AlreadyClaimed",
+  operator_is_zero: "OperatorIsZeroAddress",
 };
 
 /** Mensaje para el usuario. Explica qué pasó y, cuando aplica, qué hacer. */
@@ -91,6 +175,14 @@ const MENSAJES: Record<string, string> = {
   OperatorIsZeroAddress: "La dirección del operador no es válida.",
   TransferFailed: "La transferencia de USDC falló. Revisá el saldo y el approve del token.",
   Reentrancy: "El contrato rechazó una llamada reentrante.",
+  // `nopart` lo emiten tanto la creación (lista de participantes vacía) como el
+  // reclamo (quien reclama no participa): no hay un único equivalente Solidity.
+  ParticipantsMissingOrNotParticipant:
+    "El reto no tiene participantes válidos, o la wallet que intentó la operación no participa en él.",
+  TreasuryCallFailed: "Falló la llamada a la tesorería del contrato. Probá de nuevo más tarde o avisale al equipo.",
+  AlreadyInitialized: "El contrato ya estaba inicializado.",
+  VaultIsZeroAddress: "La dirección de la tesorería no es válida.",
+  IncorrectDeposit: "El monto del depósito no coincide con el que exige el reto.",
 };
 
 /** `execution reverted: Nombre` o `reverted with custom error 'Nombre()'`. */
@@ -110,13 +202,35 @@ function canonizar(nombre: string): string | null {
 
 /** Intenta decodificar los bytes crudos del revert con el ABI de errores. */
 function desdeData(data: unknown): string | null {
-  if (typeof data !== "string" || !HEX_DATA.test(data) || data.length < 10) return null;
-  try {
-    const decodificado = decodeErrorResult({ abi: CHALLENGE_POOL_ERRORS_ABI, data: data as `0x${string}` });
-    return decodificado.errorName ?? null;
-  } catch {
-    return null;
+  if (typeof data !== "string" || !HEX_DATA.test(data) || data.length < 4) return null;
+  if (data.length >= 10) {
+    try {
+      const decodificado = decodeErrorResult({ abi: CHALLENGE_POOL_ERRORS_ABI, data: data as `0x${string}` });
+      if (decodificado.errorName) return decodificado.errorName;
+    } catch {
+      // No es un custom error ABI-encoded: puede ser un código ASCII corto de Stylus.
+    }
   }
+  return desdeAscii(data);
+}
+
+/** Máximo de bytes de un código corto de Stylus que se intenta leer como texto. */
+const MAX_BYTES_CODIGO_CORTO = 32;
+const CODIGO_CORTO = /^[a-z0-9_]+$/;
+
+/**
+ * Los reverts de Stylus (`Err(Vec<u8>)`) llevan los bytes ASCII del código, por ejemplo
+ * `0x6e6f5f6f70` = `no_op`, que `decodeErrorResult` no puede leer. Solo se acepta texto
+ * corto y claramente imprimible; cualquier otra cosa se descarta.
+ */
+function desdeAscii(data: string): string | null {
+  const hex = data.slice(2);
+  if (hex.length === 0 || hex.length % 2 !== 0 || hex.length > MAX_BYTES_CODIGO_CORTO * 2) return null;
+  let texto = "";
+  for (let i = 0; i < hex.length; i += 2) {
+    texto += String.fromCharCode(Number.parseInt(hex.slice(i, i + 2), 16));
+  }
+  return CODIGO_CORTO.test(texto) ? texto : null;
 }
 
 /**
@@ -179,11 +293,26 @@ export function nombreDeErrorDeContrato(error: unknown): string | null {
  * traducir a ciegas escondería la causa real.
  */
 export function describirErrorDeContrato(error: unknown): string {
+  if (error instanceof TransaccionRevertidaError) {
+    return (
+      `La cadena revirtió la transacción de ${NOMBRE_DE_OPERACION[error.operacion]} ` +
+      `(tx ${error.txHash}), así que no se aplicó ningún cambio.`
+    );
+  }
+  if (error instanceof RetoNoResueltoError) {
+    return (
+      `La transacción se minó, pero el contrato no marca el reto como resuelto ` +
+      `(estado observado: ${error.estadoObservado}). Tx ${error.txHash}.`
+    );
+  }
   const nombre = nombreDeErrorDeContrato(error);
   if (nombre) {
     const mensaje = MENSAJES[nombre];
     if (mensaje) return mensaje;
     return `El contrato rechazó la operación (${nombre}).`;
+  }
+  if (error instanceof EnvioFallidoError) {
+    return `No pude enviar la transacción: ${textoDeCausa(error.cause)}`;
   }
   return error instanceof Error ? error.message : String(error);
 }

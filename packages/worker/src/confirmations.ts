@@ -15,6 +15,13 @@
 export type WalletAddress = string;
 export type ChallengeId = string;
 
+/**
+ * Ciclo de vida de la resolución on-chain de un reto:
+ * `enviada` (tx transmitida) -> `confirmada` (recibo exitoso y reto Resuelto) o
+ * `fallida` (cualquier error; libera el candado para poder reintentar).
+ */
+export type ResolutionStatus = "enviada" | "confirmada" | "fallida";
+
 export interface ChallengeConfirmationState {
   /** wallet que confirmó -> ganador que propuso. Un wallet solo puede tener un voto vigente. */
   votes: Record<WalletAddress, WalletAddress>;
@@ -22,6 +29,10 @@ export interface ChallengeConfirmationState {
   consensusTriggeredFor: WalletAddress | null;
   /** umbral de consenso vigente para este reto — se fija con la primera confirmación, no cambia después. */
   threshold: number;
+  /** Estado de la resolución on-chain. Ausente mientras no se transmitió ninguna tx. */
+  resolutionStatus?: ResolutionStatus;
+  /** Hash de la última tx de resolución transmitida. */
+  resolutionTxHash?: string;
 }
 
 export interface ConfirmationStore {
@@ -107,6 +118,55 @@ export async function registerConfirmation(
   return { accepted: true, consensusReached: Boolean(winner), alreadyTriggered: false, winner };
 }
 
+/** Aplica un cambio al estado guardado; si el reto no tiene estado, no inventa uno. */
+async function actualizarEstado(
+  store: ConfirmationStore,
+  challengeId: ChallengeId,
+  cambio: (estado: ChallengeConfirmationState) => ChallengeConfirmationState,
+): Promise<void> {
+  const state = await store.get(challengeId);
+  if (!state) return;
+  await store.put(challengeId, cambio(state));
+}
+
+/** La tx de resolución se transmitió. El candado de consenso sigue tomado: está en vuelo. */
+export async function marcarEnviada(
+  store: ConfirmationStore,
+  challengeId: ChallengeId,
+  txHash: string,
+): Promise<void> {
+  await actualizarEstado(store, challengeId, (s) => ({
+    ...s,
+    resolutionStatus: "enviada",
+    resolutionTxHash: txHash,
+  }));
+}
+
+/** Recibo exitoso y reto Resuelto: único estado que habilita anuncio e historial. */
+export async function marcarConfirmada(
+  store: ConfirmationStore,
+  challengeId: ChallengeId,
+  txHash: string,
+): Promise<void> {
+  await actualizarEstado(store, challengeId, (s) => ({
+    ...s,
+    resolutionStatus: "confirmada",
+    resolutionTxHash: txHash,
+  }));
+}
+
+/**
+ * Cualquier error de la resolución. Libera el candado (`consensusTriggeredFor = null`)
+ * y conserva los votos, así el próximo `/confirmar` recuenta y vuelve a disparar.
+ */
+export async function marcarFallida(store: ConfirmationStore, challengeId: ChallengeId): Promise<void> {
+  await actualizarEstado(store, challengeId, (s) => ({
+    ...s,
+    resolutionStatus: "fallida",
+    consensusTriggeredFor: null,
+  }));
+}
+
 /**
  * Estado de un reto para exponer al bot/Mini App — W4.1 (docs/backend-plan.md, Fase 4).
  * Refleja exactamente lo que hay en el store al momento de la consulta, sin cachear nada.
@@ -118,6 +178,8 @@ export interface ChallengeStatus {
   threshold: number | null;
   consensusReached: boolean;
   winner?: WalletAddress;
+  /** Estado de la resolución on-chain, si ya se intentó. */
+  resolutionStatus?: ResolutionStatus;
 }
 
 export async function getChallengeStatus(
@@ -136,5 +198,6 @@ export async function getChallengeStatus(
     threshold: state.threshold,
     consensusReached: Boolean(state.consensusTriggeredFor),
     winner: state.consensusTriggeredFor ?? undefined,
+    resolutionStatus: state.resolutionStatus,
   };
 }

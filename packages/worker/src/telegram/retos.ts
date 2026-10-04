@@ -30,8 +30,8 @@ import type { ChainClient } from "./chain";
 import { keys, readJson, writeJson } from "./store";
 import type { KeyValueStore } from "./store";
 import { obtenerWallet } from "./wallets";
-import type { Address } from "viem";
-import { registerConfirmation } from "../confirmations";
+import type { Address, Hex } from "viem";
+import { getChallengeStatus, marcarConfirmada, marcarEnviada, marcarFallida, registerConfirmation } from "../confirmations";
 import type { ConfirmationStore } from "../confirmations";
 import { buildAndSendConfirmResult } from "../confirmTx";
 
@@ -423,7 +423,13 @@ export async function handleConfirmar(
     return;
   }
   if (resultado.alreadyTriggered) {
-    await responder("Este reto ya se resolvió. No hacen falta más confirmaciones.");
+    // Solo `confirmada` es una resolución verificada; antes de eso la tx sigue en vuelo.
+    const { resolutionStatus } = await getChallengeStatus(deps.confirmations, reto.challengeId);
+    await responder(
+      resolutionStatus === "confirmada"
+        ? "Este reto ya se resolvió. No hacen falta más confirmaciones."
+        : "La resolución de este reto está en curso. Esperá a que la cadena la confirme.",
+    );
     return;
   }
   if (!resultado.consensusReached) {
@@ -440,36 +446,54 @@ export async function handleConfirmar(
 
   await responder(`🎉 Consenso alcanzado para <b>${escapeHtml(ganador.nombre)}</b>. Resolviendo en la cadena…`);
 
+  const confirmaciones = deps.confirmations;
+  const chain = deps.chain;
+
+  let txHash: Hex;
   try {
     // Se reusa la guarda de `confirmTx.ts`: vuelve a leer el consenso y aborta si
     // el ganador no coincide exactamente. Es la validación más importante del worker,
-    // así que no se duplica acá — se llama a la que ya está probada.
-    const txHash = await buildAndSendConfirmResult(
+    // así que no se duplica acá — se llama a la que ya está probada. El adaptador
+    // manda por `confirmarResultado`, que espera el recibo y relee el estado; no hay
+    // ninguna ruta de escritura que esquive la guarda.
+    txHash = await buildAndSendConfirmResult(
       {
-        store: deps.confirmations,
+        store: confirmaciones,
         challengeId: reto.challengeId,
         expectedWinner: ganador.wallet,
-        contractAddress: deps.chain.poolAddress,
+        contractAddress: chain.poolAddress,
       },
-      deps.chain.writer,
-    );
-
-    await registrarEnHistorial(deps.store, reto, ganador.userId);
-
-    await responder(
-      [
-        `✅ <b>Reto #${reto.challengeId} resuelto</b>`,
-        "",
-        `🏆 Ganó <b>${escapeHtml(ganador.nombre)}</b>`,
-        `💰 Pozo de ${reto.deposito * reto.participantes.length} USDC, menos la comisión`,
-        "",
-        `<code>${escapeHtml(txHash)}</code>`,
-      ].join("\n"),
+      {
+        writeContract: (call) =>
+          chain.confirmarResultado(call.args[0], call.args[1], {
+            alEnviar: (hash) => marcarEnviada(confirmaciones, reto.challengeId, hash),
+          }),
+      },
     );
   } catch (error) {
+    // Libera el candado: los votos siguen, así otro /confirmar puede reintentar.
+    await marcarFallida(confirmaciones, reto.challengeId);
     const motivo = describirErrorDeContrato(error);
-    await responder(`No pude resolver en la cadena: ${escapeHtml(motivo)}\nEl reto no cambió de estado.`);
+    await responder(
+      `No pude resolver en la cadena: ${escapeHtml(motivo)}\nPodés volver a confirmar para reintentar.`,
+    );
+    return;
   }
+
+  // Recibo exitoso y reto Resuelto: recién ahora se anuncia y se escribe el historial.
+  await marcarConfirmada(confirmaciones, reto.challengeId, txHash);
+  await registrarEnHistorial(deps.store, reto, ganador.userId);
+
+  await responder(
+    [
+      `✅ <b>Reto #${reto.challengeId} resuelto</b>`,
+      "",
+      `🏆 Ganó <b>${escapeHtml(ganador.nombre)}</b>`,
+      `💰 Pozo de ${reto.deposito * reto.participantes.length} USDC, menos la comisión`,
+      "",
+      `<code>${escapeHtml(txHash)}</code>`,
+    ].join("\n"),
+  );
 }
 
 /** Suma el reto al historial de cada participante, marcando al ganador. */
