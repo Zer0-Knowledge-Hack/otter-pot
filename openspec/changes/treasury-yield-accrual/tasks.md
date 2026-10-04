@@ -32,13 +32,13 @@ If the diff exceeds 400 lines, request `size:exception` before opening the PR.
 
 Path: `packages/stylus/contracts/treasury_vault/src/logic.rs`
 
-- [ ] 1.1 RED: tests for `reconcile` (gain, loss, equal, loss above total saturates to 0, deployed = measured).
-- [ ] 1.2 RED: tests for `accrue` (`NoStrategy` and `Unavailable` return None; `Measured` returns Some).
-- [ ] 1.3 RED: tests for `shares_for_deposit` (1:1 at zero shares; fair split 100 at 110/100 gives 90909090; `zero_share_price`; `zero_shares_minted`).
-- [ ] 1.4 RED: tests for `assets_for_redeem` (floor; post-loss values; 100 deployed then 95 gives 95).
-- [ ] 1.5 GREEN: add `BalanceRead`, `YieldDelta`, `Reconciled`, `reconcile`, `accrue`, `shares_for_deposit`, `assets_for_redeem`.
-- [ ] 1.6 Remove `positive_yield_delta` and its 3 tests; REFACTOR.
-- [ ] 1.7 Verify `cargo test` green.
+- [x] 1.1 RED: tests for `reconcile` (gain, loss, equal, loss above total saturates to 0, deployed = measured).
+- [x] 1.2 RED: tests for `accrue` (`NoStrategy` and `Unavailable` return None; `Measured` returns Some).
+- [x] 1.3 RED: tests for `shares_for_deposit` (1:1 at zero shares; fair split 100 at 110/100 gives 90909090; `zero_share_price`; `zero_shares_minted`).
+- [x] 1.4 RED: tests for `assets_for_redeem` (floor; post-loss values; 100 deployed then 95 gives 95).
+- [x] 1.5 GREEN: add `BalanceRead`, `YieldDelta`, `Reconciled`, `reconcile`, `accrue`, `shares_for_deposit`, `assets_for_redeem`.
+- [x] 1.6 Remove `positive_yield_delta` and its 3 tests; REFACTOR.
+- [x] 1.7 Verify `cargo test` green.
 
 ## Commit 2: feat(contracts): accrue on deposit, redeem, realize_yield (~75)
 
