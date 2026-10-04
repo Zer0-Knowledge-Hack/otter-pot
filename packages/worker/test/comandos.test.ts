@@ -41,12 +41,17 @@ describe("menú de comandos", () => {
     const enrutados = new Set([
       "start", "ayuda", "nutria", "vincular", "miwallet", "desvincular", "verificar",
       "nuevo", "abrir", "descartar", "retos", "estado", "depositar", "confirmar",
-      "reembolso", "cancelar", "historial", "config", "set", "reset",
+      "reembolso", "reintentar", "cancelar", "historial", "config", "set", "reset",
     ]);
 
     for (const c of [...COMANDOS_PRIVADO, ...COMANDOS_GRUPO]) {
       expect(enrutados.has(c.command), `/${c.command} está en el menú pero no en el router`).toBe(true);
     }
+  });
+
+  it("el menú del grupo ofrece /reintentar y el privado no", () => {
+    expect(COMANDOS_GRUPO.map((c) => c.command)).toContain("reintentar");
+    expect(COMANDOS_PRIVADO.map((c) => c.command)).not.toContain("reintentar");
   });
 
   it("respeta los límites de Telegram: 32 chars de comando y 256 de descripción", () => {

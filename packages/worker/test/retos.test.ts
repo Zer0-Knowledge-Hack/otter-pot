@@ -1,11 +1,12 @@
 import { beforeEach, describe, expect, it } from "vitest";
-import { InMemoryConfirmationStore } from "../src/confirmations";
-import { handleConfirmar, handleDepositar, handleHistorial, handleReembolso } from "../src/telegram/retos";
+import { InMemoryConsensusGateway } from "../src/consensus/gateway";
+import { handleConfirmar, handleDepositar, handleHistorial, handleReembolso, handleReintentar } from "../src/telegram/retos";
 import type { RetoRegistrado, RetosDeps } from "../src/telegram/retos";
 import { InMemoryStore, keys, writeJson } from "../src/telegram/store";
 import { saveConfig, DEFAULT_CONFIG } from "../src/telegram/config";
 import type { TelegramTransport } from "../src/telegram/api";
 import type { ChainClient } from "../src/telegram/chain";
+import type { ChallengeStatus } from "../src/confirmations";
 import type { Address, Hex } from "viem";
 
 class TransporteFalso implements TelegramTransport {
@@ -41,8 +42,13 @@ class CadenaFalsa implements ChainClient {
   async crearReto(): Promise<{ challengeId: bigint; txHash: Hex }> {
     return { challengeId: 0n, txHash: "0xdef" as Hex };
   }
+  estado = 1;
+  recibo: "success" | "reverted" = "success";
   async estadoDeReto(): Promise<number> {
-    return 1;
+    return this.estado;
+  }
+  async esperarRecibo(): Promise<"success" | "reverted"> {
+    return this.recibo;
   }
   async escalarUsdc(monto: number): Promise<bigint> {
     return BigInt(monto) * 1_000_000n;
@@ -77,7 +83,7 @@ describe("/confirmar", () => {
     transport = new TransporteFalso();
     store = new InMemoryStore();
     chain = new CadenaFalsa();
-    deps = { transport, store, chain, confirmations: new InMemoryConfirmationStore() };
+    deps = { transport, store, chain, consensus: new InMemoryConsensusGateway() };
     await writeJson(store, keys.challenge(CHAT, "0"), RETO);
   });
 
@@ -155,7 +161,7 @@ describe("/historial", () => {
       transport,
       store,
       chain: new CadenaFalsa(),
-      confirmations: new InMemoryConfirmationStore(),
+      consensus: new InMemoryConsensusGateway(),
     };
     await writeJson(store, keys.challenge(CHAT, "0"), RETO);
 
@@ -235,7 +241,7 @@ describe("custom errors del ChallengePool en los mensajes del bot", () => {
     chain.reembolsar = async (): Promise<Hex> => {
       throw revertDelContrato("DeadlineNotReached");
     };
-    const deps: RetosDeps = { transport, store, chain, confirmations: new InMemoryConfirmationStore() };
+    const deps: RetosDeps = { transport, store, chain, consensus: new InMemoryConsensusGateway() };
 
     await handleReembolso(deps, CHAT, "0");
 
@@ -249,7 +255,7 @@ describe("custom errors del ChallengePool en los mensajes del bot", () => {
     chain.reembolsar = async (): Promise<Hex> => {
       throw revertDelContrato("DuplicateParticipant");
     };
-    const deps: RetosDeps = { transport, store, chain, confirmations: new InMemoryConfirmationStore() };
+    const deps: RetosDeps = { transport, store, chain, consensus: new InMemoryConsensusGateway() };
 
     await handleReembolso(deps, CHAT, "0");
 
@@ -262,10 +268,168 @@ describe("custom errors del ChallengePool en los mensajes del bot", () => {
     chain.reembolsar = async (): Promise<Hex> => {
       throw new Error("HTTP request failed: 503");
     };
-    const deps: RetosDeps = { transport, store, chain, confirmations: new InMemoryConfirmationStore() };
+    const deps: RetosDeps = { transport, store, chain, consensus: new InMemoryConsensusGateway() };
 
     await handleReembolso(deps, CHAT, "0");
 
     expect(transport.ultimo).toContain("HTTP request failed: 503");
+  });
+});
+
+// ─── Ciclo de vida de la tx: /confirmar y /reintentar ────────────────────────
+
+describe("/confirmar — ciclo de vida de la tx", () => {
+  let transport: TransporteFalso;
+  let store: InMemoryStore;
+  let chain: CadenaFalsa;
+  let consensus: InMemoryConsensusGateway;
+  let deps: RetosDeps;
+
+  const status = (): Promise<ChallengeStatus> => consensus.getStatus("0");
+
+  beforeEach(async () => {
+    transport = new TransporteFalso();
+    store = new InMemoryStore();
+    chain = new CadenaFalsa();
+    consensus = new InMemoryConsensusGateway();
+    deps = { transport, store, chain, consensus };
+    await writeJson(store, keys.challenge(CHAT, "0"), RETO);
+  });
+
+  it("el recibo revertido deja el reto en failed y avisa cómo reintentar, sin escribir historial", async () => {
+    chain.recibo = "reverted";
+    await handleConfirmar(deps, CHAT, ANA.userId, ["0", "@carla"], false);
+    await handleConfirmar(deps, CHAT, BETO.userId, ["0", "@carla"], false);
+
+    expect(transport.ultimo).toContain("No pude resolver");
+    expect(transport.ultimo).toContain("/reintentar 0");
+    expect(await status()).toMatchObject({ phase: "failed", failureReason: "receipt_reverted" });
+
+    await handleHistorial(deps, CHAT, CARLA.userId, "@carla");
+    expect(transport.ultimo).toContain("todavía no jugó");
+  });
+
+  it("un /confirmar mientras la tx está en vuelo responde 'en curso' y no envía otra", async () => {
+    await handleConfirmar(deps, CHAT, ANA.userId, ["0", "@carla"], false);
+    // Consenso alcanzado por otro lado y un holder ya tiene el derecho de envío.
+    await consensus.vote("0", BETO.wallet, CARLA.wallet, 2);
+    await consensus.beginSubmit("0", Date.now());
+
+    await handleConfirmar(deps, CHAT, CARLA.userId, ["0", "@carla"], false);
+
+    expect(transport.ultimo).toContain("en curso");
+    expect(chain.escrituras).toHaveLength(0);
+  });
+
+  it("un /confirmar de un participante con el reto en failed reintenta y resuelve", async () => {
+    chain.recibo = "reverted";
+    await handleConfirmar(deps, CHAT, ANA.userId, ["0", "@carla"], false);
+    await handleConfirmar(deps, CHAT, BETO.userId, ["0", "@carla"], false);
+    expect((await status()).phase).toBe("failed");
+
+    chain.recibo = "success";
+    await handleConfirmar(deps, CHAT, CARLA.userId, ["0", "@carla"], false);
+
+    expect(chain.escrituras).toHaveLength(2);
+    expect(transport.ultimo).toContain("resuelto");
+    expect((await status()).phase).toBe("confirmed");
+  });
+
+  it("si el reto ya estaba resuelto on-chain, lo registra sin enviar tx y lo dice", async () => {
+    chain.estado = 2;
+    await handleConfirmar(deps, CHAT, ANA.userId, ["0", "@carla"], false);
+    await handleConfirmar(deps, CHAT, BETO.userId, ["0", "@carla"], false);
+
+    expect(chain.escrituras).toHaveLength(0);
+    expect(transport.ultimo).toContain("ya estaba resuelto");
+    expect((await status()).phase).toBe("confirmed");
+  });
+});
+
+describe("/reintentar", () => {
+  let transport: TransporteFalso;
+  let store: InMemoryStore;
+  let chain: CadenaFalsa;
+  let consensus: InMemoryConsensusGateway;
+  let deps: RetosDeps;
+
+  /** Deja el reto en failed con consenso para Carla. */
+  async function dejarEnFailed(): Promise<void> {
+    chain.recibo = "reverted";
+    await handleConfirmar(deps, CHAT, ANA.userId, ["0", "@carla"], false);
+    await handleConfirmar(deps, CHAT, BETO.userId, ["0", "@carla"], false);
+    chain.recibo = "success";
+  }
+
+  beforeEach(async () => {
+    transport = new TransporteFalso();
+    store = new InMemoryStore();
+    chain = new CadenaFalsa();
+    consensus = new InMemoryConsensusGateway();
+    deps = { transport, store, chain, consensus };
+    await writeJson(store, keys.challenge(CHAT, "0"), RETO);
+  });
+
+  it("cualquier participante reintenta con el ganador del consenso, sin mención", async () => {
+    await dejarEnFailed();
+
+    // Carla no es quien reintenta por mención: basta con participar, el ganador sale del consenso.
+    await handleReintentar(deps, CHAT, CARLA.userId, "0");
+
+    expect(chain.escrituras).toHaveLength(2);
+    expect(String(chain.escrituras[1]?.args[1]).toLowerCase()).toBe(CARLA.wallet.toLowerCase());
+    expect(transport.ultimo).toContain("resuelto");
+    expect(transport.ultimo).toContain("@carla");
+    expect((await consensus.getStatus("0")).phase).toBe("confirmed");
+  });
+
+  it("rechaza a quien no participa y deja el reto en failed", async () => {
+    await dejarEnFailed();
+    const escrituras = chain.escrituras.length;
+
+    await handleReintentar(deps, CHAT, 99, "0");
+
+    expect(transport.ultimo).toContain("no te incluye");
+    expect(chain.escrituras).toHaveLength(escrituras);
+    expect((await consensus.getStatus("0")).phase).toBe("failed");
+  });
+
+  it("sin consenso todavía no hay nada que reintentar", async () => {
+    await handleReintentar(deps, CHAT, ANA.userId, "0");
+    expect(transport.ultimo).toContain("Todavía no hay consenso");
+    expect(chain.escrituras).toHaveLength(0);
+  });
+
+  it("con el reto ya confirmado avisa que ya se resolvió y no envía otra tx", async () => {
+    await handleConfirmar(deps, CHAT, ANA.userId, ["0", "@carla"], false);
+    await handleConfirmar(deps, CHAT, BETO.userId, ["0", "@carla"], false);
+
+    await handleReintentar(deps, CHAT, ANA.userId, "0");
+
+    expect(transport.ultimo).toContain("ya se resolvió");
+    expect(chain.escrituras).toHaveLength(1);
+  });
+
+  it("con un envío en vuelo responde 'en curso'", async () => {
+    await consensus.vote("0", ANA.wallet, CARLA.wallet, 1);
+    await consensus.beginSubmit("0", Date.now());
+
+    await handleReintentar(deps, CHAT, ANA.userId, "0");
+
+    expect(transport.ultimo).toContain("en curso");
+    expect(chain.escrituras).toHaveLength(0);
+  });
+
+  it("pide el id y avisa si el reto no existe", async () => {
+    await handleReintentar(deps, CHAT, ANA.userId, undefined);
+    expect(transport.ultimo).toContain("Faltó el id");
+
+    await handleReintentar(deps, CHAT, ANA.userId, "77");
+    expect(transport.ultimo).toContain("No encuentro el reto");
+  });
+
+  it("avisa si no hay cadena o ledger configurado", async () => {
+    await handleReintentar({ transport, store }, CHAT, ANA.userId, "0");
+    expect(transport.ultimo).toContain("No tengo");
   });
 });
