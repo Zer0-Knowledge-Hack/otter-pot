@@ -376,18 +376,6 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "9330f8b2ff13f34540b44e946ef35111825727b38d33286ef986142615121801"
 
 [[package]]
-name = "challenge_pool"
-version = "0.1.0"
-dependencies = [
- "alloy-primitives",
- "alloy-sol-types",
- "hex",
- "mini-alloc 0.4.2",
- "stylus-sdk",
- "tiny-keccak",
-]
-
-[[package]]
 name = "const-hex"
 version = "1.19.1"
 source = "registry+https://github.com/rust-lang/crates.io-index"
@@ -939,6 +927,17 @@ source = "registry+https://github.com/rust-lang/crates.io-index"
 checksum = "2bb2aa3693a765fb59300b47151b0587b4058a73dec61f7fda974e160856e4d0"
 dependencies = [
  "cfg-if 1.0.4",
+]
+
+[[package]]
+name = "mock_usdc"
+version = "0.1.0"
+dependencies = [
+ "alloy-primitives",
+ "alloy-sol-types",
+ "hex",
+ "mini-alloc 0.4.2",
+ "stylus-sdk",
 ]
 
 [[package]]
