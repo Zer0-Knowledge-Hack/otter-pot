@@ -16,7 +16,7 @@ How OtterPot is verified, per component. Each work item in the **ArbitrumSingapu
 | `packages/stylus/contracts/<contract>` | `cargo fmt` · `cargo clippy -- -D warnings` · `cargo stylus check` (also confirms the WASM stays within the size limit) · `cargo test` · `cargo stylus export-abi` |
 | `packages/worker`, `packages/sweeper` | `yarn worker:lint` · `yarn worker:test` · `yarn sweeper:test` |
 | `packages/nextjs` | `yarn next:lint` · `yarn next:check-types` |
-| Repository | CI runs formatting, lint and tests on every pull request (updating trigger to `master` is scheduled in #18) |
+| Repository | CI runs formatting, lint and tests on every pull request and push to `master` |
 
 ## 3. Contracts
 

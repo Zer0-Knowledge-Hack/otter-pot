@@ -110,7 +110,7 @@ These rules protect the project and the funds it handles. The branch and issue r
 3. **Keep changes focused.** One concern per pull request. If a change grows large, split it into reviewable slices.
 4. **Open a pull request** against `master` and fill in the pull request template. Link the issue (`Closes #123`).
 5. **Get a review** from a collaborator who is not the author, as described above. Address feedback with new commits; do not force-push over a review in progress.
-6. **Merge** once the review is approved and the checks pass (updating CI workflows to listen to pull requests targeting `master` instead of `main` is tracked in #18). Delete the branch after merging.
+6. **Merge** once the review is approved and the checks pass. Delete the branch after merging.
 
 ## Labels and milestones
 
