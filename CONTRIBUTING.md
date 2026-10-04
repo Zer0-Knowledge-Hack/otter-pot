@@ -36,10 +36,12 @@ Prerequisites: Node.js (LTS), Yarn 3.2.3 (the repo is locked with Yarn; do not u
 ```bash
 git clone https://github.com/Zer0-Knowledge-Hack/otter-pot.git
 cd otter-pot
-yarn install --immutable
+yarn install
 ```
 
-Never commit private keys, Privy secrets, RPC keys, or real environment values. Use `dev.vars` locally and `wrangler secret put` in Cloudflare. Contract addresses are injected through environment variables, not hardcoded in code or in `wrangler.toml`.
+*(Note: `yarn install --immutable` is the target for clean CI clones once the lockfile is refreshed in #18; use `yarn install` for local setup today).*
+
+Never commit private keys, Privy secrets, RPC keys, or real environment values. Use `dev.vars` locally and `wrangler secret put` in Cloudflare. *(Note: Contract addresses currently reside in `packages/worker/wrangler.toml` pointing to Arc testnet (5042002); migrating contract addresses to injected environment variables and reverting to Arbitrum Sepolia is the goal of #28).*
 
 ## Build and test
 
@@ -57,10 +59,15 @@ Do not use `unwrap()` on paths that handle user funds; propagate errors explicit
 
 **Worker and sweeper (`packages/worker`, `packages/sweeper`)**
 
+Canonical commands use Yarn workspace scripts:
+
 ```bash
-npm run lint
-npm test
-wrangler dev
+yarn worker:lint
+yarn worker:test
+yarn worker:dev
+yarn sweeper:typecheck
+yarn sweeper:test
+yarn sweeper:dev
 ```
 
 Use strict typing. Do not use `any` in the module that builds transactions to the contract.
@@ -103,7 +110,7 @@ These rules protect the project and the funds it handles. The branch and issue r
 3. **Keep changes focused.** One concern per pull request. If a change grows large, split it into reviewable slices.
 4. **Open a pull request** against `master` and fill in the pull request template. Link the issue (`Closes #123`).
 5. **Get a review** from a collaborator who is not the author, as described above. Address feedback with new commits; do not force-push over a review in progress.
-6. **Merge** once the review is approved and the checks pass. Delete the branch after merging.
+6. **Merge** once the review is approved and the checks pass (updating CI workflows to listen to pull requests targeting `master` instead of `main` is tracked in #18). Delete the branch after merging.
 
 ## Labels and milestones
 
@@ -124,7 +131,7 @@ Do not add AI attribution trailers or `Co-Authored-By` lines to commits.
 ## Before you call a task done
 
 1. **Touches `packages/stylus`:** `cargo fmt`, `cargo clippy`, `cargo stylus check`, `cargo test`.
-2. **Touches `packages/worker`:** `npm run lint`, `npm test`.
+2. **Touches `packages/worker` or `packages/sweeper`:** `yarn worker:lint`, `yarn worker:test`, `yarn sweeper:test`.
 3. **Changes the data model, challenge lifecycle, fee model, or treasury model:** reflect it in `docs/SDD.md` before closing.
 4. **Changes a deployed contract:** redeploy, then propagate the new address and ABI to `packages/worker/contracts`, the Mini App environment variables, and the scripts. Coordinate with the team first.
 

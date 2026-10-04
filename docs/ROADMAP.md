@@ -17,7 +17,7 @@ The MVP demonstrates one coherent story: *a group pot that lives in Telegram, is
 | 1 | Create | In a Telegram group: `/nuevo 5 24`, friends press **Me sumo**, the creator runs `/abrir`. The challenge is created on Arbitrum Sepolia. | Bot, relayer, `ChallengePool` |
 | 2 | Deposit | Each participant opens the deposit page and signs `approve` + `deposit` with their own wallet. | Mini App, `ChallengePool`, USDC |
 | 3 | Lock | When the last participant deposits, the challenge becomes **Bloqueado** and the pool moves into the treasury in exchange for shares. | `ChallengePool`, `TreasuryVault` |
-| 4 | Earn | The Sweeper deploys idle treasury funds to Aave V3 and accounts for the yield. | Sweeper, `TreasuryVault`, `AaveV3Strategy`, Aave |
+| 4 | Earn | The Sweeper deploys idle treasury funds to Aave V3 and accounts for the yield. Yield offsets the platform fee (or generates surplus); the demo shows Aave integration, while the pitch focuses on automated pool custody rather than "the pot grows" or "no-loss". | Sweeper, `TreasuryVault`, `AaveV3Strategy`, Aave |
 | 5 | Resolve | Participants vote with `/confirmar`. On consensus the relayer submits the result, the winner is paid and the platform fee reaches the fee recipient. | Bot, relayer, `ChallengePool` |
 | 6 | Cancel | A challenge where someone never deposits is cancelled with `/cancelar` and every depositor recovers 100 % of their deposit. | Bot, relayer, `ChallengePool` |
 
@@ -25,7 +25,7 @@ Every step produces on-chain transactions that are recorded in `docs/evidence/` 
 
 ### Out of scope for the MVP
 
-AI judge mode, veto window, full Privy embedded-wallet integration (UX mockups are provided instead), fiat off-ramp, multi-chain support, fundraising (external-destination) challenges, and yield as a selling point (yield is real but small at MVP scale). These are planned for later iterations and are described in [`SDD.md`](SDD.md) §2.2.
+AI judge mode, veto window, full Privy embedded-wallet integration (UX mockups are provided instead), fiat off-ramp, multi-chain support, fundraising (external-destination) challenges, and claiming "no-loss" or "the pot grows" (under Option A, platform commission is deducted from the pool if yield does not cover it; yield is real but small at MVP scale). These are planned for later iterations and are described in [`SDD.md`](SDD.md) §2.2.
 
 ## 2. Workstreams and status
 

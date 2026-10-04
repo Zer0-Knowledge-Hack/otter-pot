@@ -23,9 +23,13 @@ Each entry states the context, the decision, its consequences and how it is veri
 
 **Status:** Accepted.
 
+Team decision: A. Keep the current model: fee = min(target, recovered), winner = min(pool, recovered − fee). The winner can receive less than the pool. Pitch / README / #9 must not claim no-loss or “the pot never shrinks”.
+
 **Context.** [`SDD.md`](SDD.md) §8.2 specifies that yield earned by a challenge is applied to its commission first and that the winner never receives more than the pool. The current `resolve_payout` applies the commission rate to the *recovered* amount (principal plus yield) and pays the winner the remainder, so yield can raise the winner's payout above the pool. The SDD formula `fee = max(target − yield, 0)` also leaves the platform with no fee whenever yield covers the commission.
 
 **Decision.** The platform always receives the target commission. Yield funds it first; participants only cover the shortfall. Anything left after the winner and the fee are paid is the *surplus*, which is sent to the fee recipient.
+
+The commission percentage is configurable and not hardcoded: `set_commission_rate(rate_bps)` allows the owner to adjust it up to a maximum safety ceiling (`MAX_COMMISSION_BPS = 1000` bps / 10 %), protected by access control (`only_owner`) and emitting `CommissionRateUpdated(previous_rate, new_rate)` to prevent owner griefing and maintain on-chain auditability.
 
 ```
 pool      = deposit × participants
@@ -47,9 +51,9 @@ Worked example, `pool = 100`, `rate = 5 %` (`target = 5`):
 
 **Invariants.** `winner ≤ pool` and `winner + fee + surplus = recovered` for every input. A redemption that returns `0` aborts the resolution instead of marking the challenge Resuelto with a zero payout.
 
-**Consequences.** Participants never gain or lose more than the target commission. Platform revenue is `max(target, yield)` per resolved challenge. The `ChallengeResolved` event exposes `winner`, `fee` and `surplus`.
+**Consequences.** Participants never gain or lose more than the target commission. Platform revenue is `max(target, yield)` per resolved challenge. The `ChallengeResolved` event exposes `winner`, `fee` and `surplus`. The platform fee is configurable by the owner within strict safety limits (`rate_bps ≤ 1000`). Pitch, README and demo materials must not claim "no-loss" or "the pot never shrinks", as the winner receives less than the pool when yield is insufficient to cover the fee.
 
-**Verified by.** Payout invariant tests in `challenge_pool/src/logic.rs` (TESTING §3.1).
+**Verified by.** Payout invariant tests in `challenge_pool/src/logic.rs` and rate bounds tests (TESTING §3.1).
 
 ## DD-02 — Fee recipient
 
