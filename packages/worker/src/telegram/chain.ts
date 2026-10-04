@@ -118,6 +118,19 @@ export function resolverCadena(chainId: number | undefined): Chain {
   );
 }
 
+/** El RPC tiene que ser una URL http(s): cualquier otro esquema no sirve de transporte. */
+function validarUrlDeRpc(valor: string): void {
+  let url: URL;
+  try {
+    url = new URL(valor);
+  } catch {
+    throw new Error("cadena: CHAIN_RPC_URL no es una URL válida");
+  }
+  if (url.protocol !== "http:" && url.protocol !== "https:") {
+    throw new Error("cadena: CHAIN_RPC_URL debe usar http o https");
+  }
+}
+
 /**
  * Arma la configuración desde el entorno. Falla con un mensaje concreto por cada
  * variable que falte: un error de configuración tiene que ser obvio, no un
@@ -128,6 +141,7 @@ export function configDesdeEnv(env: ChainEnv, chainOverride?: Chain): ChainConfi
   const chain = chainOverride ?? resolverCadena(CHAIN_ID ? Number(CHAIN_ID) : undefined);
 
   if (!CHAIN_RPC_URL) throw new Error("cadena: falta CHAIN_RPC_URL");
+  validarUrlDeRpc(CHAIN_RPC_URL);
   if (!CHALLENGE_POOL_ADDRESS) throw new Error("cadena: falta CHALLENGE_POOL_ADDRESS");
   if (!ADDRESS_FORMAT.test(CHALLENGE_POOL_ADDRESS)) {
     throw new Error("cadena: CHALLENGE_POOL_ADDRESS no es una dirección de 20 bytes");
