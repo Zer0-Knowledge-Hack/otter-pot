@@ -96,6 +96,7 @@ coverage/
 
 # Estados locales de agentes
 .codex/
+.codegraph/
 .agent/skills/
 .agents/skills/
 .worktrees/

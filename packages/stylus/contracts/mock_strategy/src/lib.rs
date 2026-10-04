@@ -25,6 +25,7 @@ pub mod contract {
         event MockStrategyInitialized(address indexed owner, address indexed usdc);
         event VaultSet(address indexed vault);
         event Minted(uint256 amount);
+        event LossSimulated(uint256 amount);
     }
 
     #[storage]
@@ -157,6 +158,26 @@ pub mod contract {
             .abi_encode();
             call::call(&mut *self, usdc, &data).map_err(|_| b"transferFrom_failed".to_vec())?;
             evm::log(Minted { amount });
+            Ok(())
+        }
+
+        /// Simulates a strategy loss by sending `amount` USDC to the owner. Owner only.
+        pub fn simulate_loss(&mut self, amount: U256) -> Result<(), Vec<u8>> {
+            self.require_owner()?;
+            if amount.is_zero() {
+                return Ok(());
+            }
+            if self.usdc_balance() < amount {
+                return Err(b"insufficient_assets".to_vec());
+            }
+            let data = IERC20::transferCall {
+                to: msg::sender(),
+                amount,
+            }
+            .abi_encode();
+            let usdc = self.usdc.get();
+            call::call(&mut *self, usdc, &data).map_err(|_| b"transfer_failed".to_vec())?;
+            evm::log(LossSimulated { amount });
             Ok(())
         }
     }

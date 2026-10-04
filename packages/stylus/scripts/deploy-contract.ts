@@ -25,6 +25,11 @@ import { getPrivateKey } from "./utils/network";
 import { extractDeploymentInfo } from "./utils/contract";
 import { arbitrumNitro } from "../../nextjs/utils/scaffold-stylus/supportedChains";
 
+const REPO_ROOT = path
+  .resolve(__dirname, "../../..")
+  .replace(/^([A-Za-z]):\\/, (_: string, d: string) => `/mnt/${d.toLowerCase()}/`)
+  .replace(/\\/g, "/");
+
 const LINUX_CONTRACTS = path
   .resolve(__dirname, "../contracts")
   .replace(/^([A-Za-z]):\\/, (_: string, d: string) => `/mnt/${d.toLowerCase()}/`)
@@ -56,8 +61,10 @@ async function cargoDeploy(
   const script = [
     `rm -rf ${TMP_WORKSPACE}/work`,
     `mkdir -p ${TMP_WORKSPACE}/work`,
-    `cp -r '${LINUX_CONTRACTS}' ${TMP_WORKSPACE}/work/`,
+    `cp -r '${REPO_ROOT}/rust-toolchain.toml' '${REPO_ROOT}/Stylus.toml' ${TMP_WORKSPACE}/work/`,
+    `rsync -a --exclude 'target' '${LINUX_CONTRACTS}' ${TMP_WORKSPACE}/work/`,
     `cd ${TMP_WORKSPACE}/work/contracts/${name}`,
+    `cp ${TMP_WORKSPACE}/work/Stylus.toml ${TMP_WORKSPACE}/work/rust-toolchain.toml .`,
     `cargo stylus deploy --endpoint '${rpc}' --private-key '${privateKey}' --no-verify --max-fee-per-gas-gwei=${maxFeeGwei}`,
   ].join(" && ");
   const out = runWsl(script);
