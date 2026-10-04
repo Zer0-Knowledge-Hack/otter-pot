@@ -16,6 +16,7 @@ Each entry states the context, the decision, its consequences and how it is veri
 | DD-08 | Relayer reliability and configuration | Relayer | #27 |
 | DD-09 | Single coordinated redeployment | All | #24 |
 | DD-10 | Deposit flow from Telegram groups | Bot, Mini App | #31, #32 |
+| DD-11 | Off-chain app data in Firebase | Web app | AS-17 (PR #46) |
 
 ---
 
@@ -188,3 +189,29 @@ At most one transaction is in flight per challenge, and a failed transaction ret
 **Consequences.** Deposits never depend on the relayer. Mobile wallet support is part of the deposit page work (#31).
 
 **Verified by.** TESTING §6.
+
+## DD-11 — Off-chain app data in Firebase
+
+**Status:** Proposed (pending team approval).
+
+**Context.** The web app (`packages/nextjs`) needs data that does not belong on chain: a session, a user profile, a leaderboard, the live strip and site configuration of the landing page, and a contact form. None of this was covered by DD-01 to DD-10 or by [`ROADMAP.md`](ROADMAP.md), and it arrived with the landing work (AS-17) without a recorded decision.
+
+**Decision.** Firebase (project `hola-dc698`) is the off-chain store for app data only:
+
+- **Authentication:** Google sign-in, or Firebase Anonymous Auth when the user connects a wallet. Guest mode exists only in the browser (`localStorage`).
+- **Realtime Database paths:** `users`, `activity`, `notifications`, `invites` and `transactions` (owner only); `leaderboard` (read by signed-in users, each writes only their own entry); `challenges` and `challengeParticipants` (public read; owner or participant writes); `contactMessages` (create-only, validated); `siteConfig` (public read, no client writes).
+- **Rules** are versioned in `packages/nextjs/database.rules.json` and `packages/nextjs/storage.rules`: the root denies everything by default, each user reads and writes only under their own `auth.uid`, and Storage is closed.
+
+**Firebase never holds or moves funds.** Deposits are signed by the participant and read `challengeStatus` directly from `ChallengePool` (DD-10). Payouts and refunds are decided by the contract. Firebase data is a mirror for the UI and is never trusted for money movements.
+
+**Consequences and known risks.**
+
+- Wallet ownership is **not verified**. Anonymous Auth plus a connected wallet stores the address in the profile without a signature. A SIWE-style link is prepared in `walletLink.ts` but not wired. A profile could claim someone else's address; funds are unaffected.
+- `challengeParticipants` is publicly readable and includes `walletAddress` and `username`, so a username can be linked to a wallet.
+- `leaderboard` entries are self-reported (bounded to 1,000,000 points), so they are not tamper-proof.
+- `contactMessages` accepts anonymous submissions without rate limiting.
+- Local development and production use the same Firebase project.
+
+Fixing these (SIWE verification, restricted participant reads, a server-side leaderboard, a separate demo project) is follow-up work and requires redeploying the rules.
+
+**Verified by.** Anonymous read-only requests to the deployed database return `Permission denied` for the root, `users`, `leaderboard`, `activity`, `transactions` and `contactMessages`, and data only for `siteConfig` and `challenges`, which matches the versioned rules. Rule tests with the Firebase emulator are pending.

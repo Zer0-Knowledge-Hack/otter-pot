@@ -1,0 +1,116 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+
+    "siteConfig": {
+      ".read": true,
+      ".write": false
+    },
+
+    "contactMessages": {
+      "$id": {
+        ".read": false,
+        ".write": "!data.exists() && newData.hasChildren(['name', 'email', 'message', 'createdAt']) && newData.child('name').isString() && newData.child('name').val().length >= 2 && newData.child('name').val().length <= 80 && newData.child('email').isString() && newData.child('email').val().length >= 5 && newData.child('email').val().length <= 120 && newData.child('message').isString() && newData.child('message').val().length >= 5 && newData.child('message').val().length <= 2000 && newData.child('createdAt').isNumber()",
+        ".validate": "newData.hasChildren(['name', 'email', 'message', 'createdAt'])"
+      }
+    },
+
+    "users": {
+      "$uid": {
+        ".read": "auth != null && auth.uid == $uid",
+        ".write": "auth != null && auth.uid == $uid",
+        ".validate": "newData.hasChildren(['uid', 'createdAt']) && newData.child('uid').val() == $uid && newData.child('createdAt').isNumber() && (!data.exists() || newData.child('createdAt').val() == data.child('createdAt').val()) && (!newData.hasChild('points') || (newData.child('points').isNumber() && newData.child('points').val() >= 0 && newData.child('points').val() <= 1000000))",
+        "uid": { ".validate": "newData.val() == auth.uid" },
+        "createdAt": {
+          ".validate": "!data.exists() || newData.val() == data.val()"
+        },
+        "provider": {
+          ".validate": "!data.exists() || newData.val() == data.val() || data.val() == null"
+        }
+      }
+    },
+
+    "leaderboard": {
+      ".read": "auth != null",
+      ".indexOn": ["points"],
+      "$uid": {
+        ".write": "auth != null && auth.uid == $uid",
+        ".validate": "newData.hasChildren(['userId', 'points', 'wins', 'rewards']) && newData.child('userId').val() == auth.uid && newData.child('points').isNumber() && newData.child('points').val() >= 0 && newData.child('points').val() <= 1000000 && newData.child('wins').isNumber() && newData.child('wins').val() >= 0 && newData.child('wins').val() <= 100000 && newData.child('rewards').isNumber() && newData.child('rewards').val() >= 0"
+      }
+    },
+
+    "challenges": {
+      ".read": true,
+      ".indexOn": ["createdAt", "deadline", "ownerId", "status"],
+      "$id": {
+        ".write": "auth != null && ( (!data.exists() && newData.child('ownerId').val() == auth.uid) || (data.exists() && data.child('ownerId').val() == auth.uid) || (data.exists() && root.child('challengeParticipants').child($id).child(auth.uid).exists() && newData.child('ownerId').val() == data.child('ownerId').val() && newData.child('amount').val() == data.child('amount').val() && newData.child('title').val() == data.child('title').val() && ( (!data.hasChild('onChainChallengeId') || data.child('onChainChallengeId').val() == null) ? (!newData.hasChild('onChainChallengeId') || newData.child('onChainChallengeId').val() == null) : newData.child('onChainChallengeId').val() == data.child('onChainChallengeId').val() ) && ( (!data.hasChild('txHash') || data.child('txHash').val() == null) ? (!newData.hasChild('txHash') || newData.child('txHash').val() == null) : newData.child('txHash').val() == data.child('txHash').val() ) && ( newData.child('status').val() == data.child('status').val() || ((data.child('status').val() == 'open' || data.child('status').val() == 'active') && (newData.child('status').val() == 'locked' || newData.child('status').val() == 'active' || newData.child('status').val() == 'open')) ) ) )",
+        ".validate": "newData.hasChildren(['ownerId', 'title', 'amount', 'status', 'createdAt']) && newData.child('ownerId').isString() && newData.child('title').isString() && newData.child('amount').isNumber() && newData.child('amount').val() >= 0 && newData.child('createdAt').isNumber() && (!data.exists() || newData.child('ownerId').val() == data.child('ownerId').val()) && (!data.exists() || newData.child('amount').val() == data.child('amount').val()) && (!data.exists() || !data.hasChild('onChainChallengeId') || data.child('onChainChallengeId').val() == null || newData.child('onChainChallengeId').val() == data.child('onChainChallengeId').val()) && (!data.exists() || !data.hasChild('txHash') || data.child('txHash').val() == null || newData.child('txHash').val() == data.child('txHash').val())",
+        "ownerId": {
+          ".validate": "!data.exists() || newData.val() == data.val()"
+        },
+        "amount": {
+          ".validate": "!data.exists() || newData.val() == data.val()"
+        },
+        "currency": {
+          ".validate": "!newData.exists() || newData.val() == 'USDC' || newData.val() == 'USDT'"
+        },
+        "onChainChallengeId": {
+          ".validate": "!data.exists() || data.val() == null || newData.val() == data.val()"
+        },
+        "txHash": {
+          ".validate": "!data.exists() || data.val() == null || newData.val() == data.val()"
+        },
+        "contractAddress": {
+          ".validate": "!data.exists() || data.val() == null || newData.val() == data.val()"
+        },
+        "winnerWallet": {
+          ".validate": "!data.exists() || data.val() == null || newData.val() == data.val() || root.child('challenges').child($id).child('ownerId').val() == auth.uid"
+        },
+        "onChainParticipantWallets": {
+          ".validate": "!data.exists() || data.val() == null || newData.val() == data.val() || root.child('challenges').child($id).child('ownerId').val() == auth.uid"
+        }
+      }
+    },
+
+    "challengeParticipants": {
+      "$challengeId": {
+        ".read": true,
+        "$uid": {
+          ".write": "auth != null && auth.uid == $uid",
+          ".validate": "newData.child('userId').val() == auth.uid && newData.child('challengeId').val() == $challengeId && newData.child('walletAddress').isString() && newData.child('walletAddress').val().length >= 42"
+        }
+      }
+    },
+
+    "transactions": {
+      ".indexOn": ["userId", "challengeId", "createdAt"],
+      "$txId": {
+        ".read": "auth != null && data.child('userId').val() == auth.uid",
+        ".write": "auth != null && ((!data.exists() && newData.child('userId').val() == auth.uid && newData.child('status').val() == 'pending') || (data.exists() && data.child('userId').val() == auth.uid && data.child('status').val() == 'pending' && newData.child('userId').val() == auth.uid && newData.child('hash').val() == data.child('hash').val()))",
+        ".validate": "newData.hasChildren(['userId', 'challengeId', 'hash', 'status', 'chainId', 'createdAt']) && newData.child('userId').val() == auth.uid && newData.child('hash').isString() && newData.child('hash').val().length > 10 && (!data.exists() || newData.child('hash').val() == data.child('hash').val()) && newData.child('chainId').isNumber() && (newData.child('status').val() == 'pending' || newData.child('status').val() == 'failed')"
+      }
+    },
+
+    "activity": {
+      "$uid": {
+        ".read": "auth != null && auth.uid == $uid",
+        ".write": "auth != null && auth.uid == $uid"
+      }
+    },
+
+    "notifications": {
+      "$uid": {
+        ".read": "auth != null && auth.uid == $uid",
+        ".write": "auth != null && auth.uid == $uid"
+      }
+    },
+
+    "invites": {
+      "$uid": {
+        ".read": "auth != null && auth.uid == $uid",
+        ".write": "auth != null && auth.uid == $uid"
+      }
+    }
+  }
+}
