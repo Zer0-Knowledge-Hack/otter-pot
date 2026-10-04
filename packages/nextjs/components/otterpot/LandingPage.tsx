@@ -264,8 +264,8 @@ export function LandingPage() {
             <SwitchTheme />
             {/* Acciones, separadas de las preferencias */}
             <span aria-hidden="true" className="hidden h-6 w-px bg-otter-border sm:block" />
-            {/* /app/ redirige al login si no hay sesión (AuthGate). */}
-            <Link href="/app/" className="hidden sm:block">
+            {/* /app/ (login + dashboard) is a follow-up PR; point Sign in at the deposit page until it exists. */}
+            <Link href="/depositar/" className="hidden sm:block">
               <Button size="sm" variant="secondary">{t("nav.signIn")}</Button>
             </Link>
             <Button
@@ -311,7 +311,7 @@ export function LandingPage() {
               ))}
             </nav>
             <div className="mt-auto space-y-2 pt-6">
-              <Link href="/app/" className="block" onClick={() => setMenuOpen(false)}>
+              <Link href="/depositar/" className="block" onClick={() => setMenuOpen(false)}>
                 <Button variant="secondary" className="w-full">{t("nav.signIn")}</Button>
               </Link>
               <Button
@@ -808,7 +808,7 @@ export function LandingPage() {
           >
             {t("mobileBar.group")}
           </Button>
-          <Link href="/app/" className="flex-1">
+          <Link href="/depositar/" className="flex-1">
             <Button size="sm" variant="secondary" className="w-full">
               {t("nav.signIn")}
             </Button>
