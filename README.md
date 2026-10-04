@@ -117,7 +117,7 @@ Full roadmap, phase dependencies and release gates: [`docs/ROADMAP.md`](docs/ROA
 - **📑 Pitch deck:** [link pending]
 - **🚀 Live demo link:** [link pending]
 - **🎬 Demo video:** [link pending]
-- **🏗️ Architecture diagram link:** [link pending]
+- **🏗️ Architecture diagram link:** [OtterPot system architecture (Mermaid Live)](https://mermaid.live/view#pako:eNp9VE1v2zAM_SuETxuQrNmy01AESNxip2EB7KUIrB0Ui0mEypKnj25e0_8-ynYyex1iwJZEPT6Sj4Sfk9IITD5BcrC8PkK-YhrocWHXGVIlUXssWNLvgIUPs_cfIUeFBKlY8r1ziU_-eWV8QS8IvCAG91-klsu6LuIKtOmvUAum_wm8DP5IUWmhqLLkpWRhNtvP9Sjg2sqnpmi_MIUHrhR6uK92uJOCX2Ff8fKR7BSg353LSpUJYq-4RXgw9hGtG8XrbEW3wFf7I6DzXBh7u7M3C4uKN2gH-OwnYk0O_dr7DwFYWvSueJMq_oRRtjJQwRwMwSMxhwaWopKa6nMt2Ly9Ulh65FJH3exOehuqS11Ge8u9cZD5RoVxVem6ID_STh9wbYwadnRT5Ba5C7bZ8KD84GqbFUvKeTPPIjMeYge44HWrx5UU7395tJqrmGWseTMnGJwTHreXkmmDtDvi_5bdpa-p27GD2-l00Qvcmftp6y7aGfmPfejQz9G76eK0l7bisR0C627wnPRmAk5iVdtoVhBc4FaaE-nX-fdjQbSn0uiW4jK2cAMWnVHhYpm8avVfpvO8tLlQCso0ubnoHKm4kr9xK1GJEzVpHJ-czoP1mm58k647Gc4U-aY7b7PuvM16-Uj_ZAJJhVSUFPGP8RwRLPFHrJCRgSUC93FGWML0SwSHWlDCd5LH3wAhqL9IZmvC4UjHPVcOX_4AX2Nx9A==)
 
 ### 📜 Deployed Smart Contracts (Arbitrum Sepolia)
 

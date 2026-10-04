@@ -97,7 +97,7 @@ graph TB
     end
 
     subgraph Backend["Backend — Cloudflare Workers"]
-        Worker[Worker Orquestador]
+        Worker[Worker Orquestador<br/>relayer]
         Sweeper[Sweeper Worker]
         Secrets[(Clave de cuenta operadora y Admin - secreto)]
     end
