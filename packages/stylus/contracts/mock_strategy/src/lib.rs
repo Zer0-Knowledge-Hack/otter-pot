@@ -65,7 +65,7 @@ pub mod contract {
 
     #[public]
     impl MockStrategy {
-        /// Inicializador de una sola vez. El llamador pasa a ser el owner.
+        /// One-shot initializer. Caller becomes owner.
         pub fn init(&mut self, usdc: Address) -> Result<(), Vec<u8>> {
             if self.initialized.get() {
                 return Err(b"already_initialized".to_vec());
@@ -83,7 +83,7 @@ pub mod contract {
             Ok(())
         }
 
-        /// Autoriza al vault para depositar/retirar. Solo owner.
+        /// Authorizes vault to deposit/withdraw. Admin only.
         pub fn set_vault(&mut self, vault: Address) -> Result<(), Vec<u8>> {
             self.require_owner()?;
             if vault == Address::ZERO {
@@ -94,7 +94,7 @@ pub mod contract {
             Ok(())
         }
 
-        /// Retiene USDC del vault en el mock. Solo vault.
+        /// Retains USDC from vault in mock. Vault only.
         pub fn deposit(&mut self, amount: U256) -> Result<(), Vec<u8>> {
             self.require_vault()?;
             if amount.is_zero() {
@@ -111,7 +111,7 @@ pub mod contract {
             Ok(())
         }
 
-        /// Devuelve USDC al vault. Solo vault.
+        /// Returns USDC to vault. Vault only.
         pub fn withdraw(&mut self, amount: U256) -> Result<U256, Vec<u8>> {
             self.require_vault()?;
             if amount.is_zero() {
@@ -131,7 +131,7 @@ pub mod contract {
             Ok(amount)
         }
 
-        /// USDC retenido en el mock. El yield es la USDC acuñada adicionalmente.
+        /// USDC retained in mock. Yield is extra minted USDC.
         pub fn balance_of(&self) -> U256 {
             self.usdc_balance()
         }
@@ -141,7 +141,7 @@ pub mod contract {
             self.usdc_balance()
         }
 
-        /// Acuña USDC extra en el mock para simular rendimiento. Solo owner.
+        /// Mints extra USDC in mock to simulate yield. Admin only.
         pub fn mint(&mut self, amount: U256) -> Result<(), Vec<u8>> {
             self.require_owner()?;
             if amount.is_zero() {

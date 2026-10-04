@@ -3,7 +3,7 @@
 #[cfg(any(target_arch = "wasm32", feature = "export-abi"))]
 extern crate alloc;
 
-/// Lógica pura, testeable en host (sin llamadas EVM).
+/// Pure logic, testable on host.
 pub mod logic;
 
 #[cfg(any(target_arch = "wasm32", feature = "export-abi"))]
@@ -21,7 +21,7 @@ pub mod contract {
 
     mod strategy;
 
-    // ── ERC-20 (USDC) ────────────────────────────────────────────────────────
+    // ── ERC-20 (USDC) ──
     sol! {
         interface IERC20 {
             function transferFrom(address from, address to, uint256 amount) external returns (bool);
@@ -31,7 +31,7 @@ pub mod contract {
         }
     }
 
-    // ── Eventos ───────────────────────────────────────────────────────────────
+    // ── Events ──
 
     sol! {
         event TreasuryInitialized(address indexed admin, address indexed usdc);
@@ -56,22 +56,22 @@ pub mod contract {
         event OwnershipTransferred(address indexed previous_owner, address indexed new_owner);
     }
 
-    // ── Almacenamiento ────────────────────────────────────────────────────────
+    // ── Storage ──
 
     #[storage]
     #[entrypoint]
     pub struct TreasuryVault {
-        /// Cuenta administradora (SDD §7.3). Puede ser EOA o multisig.
+        /// Admin account.
         pub owner: StorageAddress,
-        /// Activo de rendimiento (USDC).
+        /// Yield asset (USDC).
         pub usdc: StorageAddress,
-        /// Estrategia externa activa (0x0 = sin estrategia).
+        /// Active external strategy.
         pub strategy: StorageAddress,
-        /// Activos bajo gestión en USDC (incluye rendimiento).
+        /// Assets under management in USDC.
         pub total_assets: StorageU256,
-        /// Participaciones en circulación.
+        /// Outstanding shares.
         pub total_shares: StorageU256,
-        /// Participaciones por tenedor (SDD §7.2: cada reto canjea exactamente las suyas).
+        /// Participaciones por tenedor.
         ///
         /// Sin este libro mayor, `total_shares` es un contador global y cualquiera puede
         /// canjear las participaciones de todos. Es la guarda que impide vaciar el vault.
@@ -84,7 +84,7 @@ pub mod contract {
         pub pending_owner: StorageAddress,
     }
 
-    // ── Helpers ────────────────────────────────────────────────────────────────
+    // ── Helpers ────
 
     impl TreasuryVault {
         fn usdc_balance(&self, token: Address, who: Address) -> U256 {
@@ -111,11 +111,11 @@ pub mod contract {
         }
     }
 
-    // ── Interfaz pública ──────────────────────────────────────────────────────
+    // ── Public interface ──
 
     #[public]
     impl TreasuryVault {
-        /// Inicializador de una sola vez. Debe llamarse tras el deploy.
+        /// One-shot initializer.
         pub fn init(&mut self, usdc: Address) -> Result<(), Vec<u8>> {
             if self.owner.get() != Address::ZERO {
                 return Err(b"already_initialized".to_vec());
@@ -133,9 +133,9 @@ pub mod contract {
             Ok(())
         }
 
-        // ── Vault de participaciones (SDD §7.2) ────────────────────────────────
+        // ── Share vault ──
 
-        /// Precio por participación: total_assets / total_shares (×1e18); 1e18 si vacío.
+        /// Price per share: total_assets / total_shares (*1e18); 1e18 if empty.
         pub fn price_per_share(&self) -> U256 {
             let shares = self.total_shares.get();
             if shares.is_zero() {
@@ -152,8 +152,7 @@ pub mod contract {
             self.total_shares.get()
         }
 
-        /// Participaciones que posee una cuenta. El `ChallengePool` las consulta para
-        /// conciliar contra el `treasury_shares` que guarda por reto.
+        /// Shares held by an account.
         pub fn shares_of(&self, account: Address) -> U256 {
             self.shares_of.get(account)
         }
@@ -162,8 +161,7 @@ pub mod contract {
             self.strategy_deployed.get()
         }
 
-        /// Emite participaciones por USDC depositados. CEI: contabilidad antes del
-        /// transfer; el llamador debe haber aprobado al vault.
+        /// Mints shares for deposited USDC. CEI pattern applied.
         pub fn deposit(&mut self, assets: U256) -> Result<U256, Vec<u8>> {
             self.require_not_paused()?;
             if assets.is_zero() {
@@ -182,13 +180,12 @@ pub mod contract {
             let new_shares = self.total_shares.get() + shares;
             self.total_shares.set(new_shares);
 
-            // Acreditar las participaciones a quien deposita. `redeem_shares` solo puede
-            // quemar contra este saldo, nunca contra el total global.
+            // Credit shares to depositor.
             let holder = msg::sender();
             let holder_shares = self.shares_of.get(holder) + shares;
             self.shares_of.setter(holder).set(holder_shares);
 
-            // Mover USDC desde el depositante.
+            // Pull USDC from depositor.
             let usdc = self.usdc.get();
             let data = IERC20::transferFromCall {
                 from: msg::sender(),
@@ -198,7 +195,7 @@ pub mod contract {
             .abi_encode();
             call::call(&mut *self, usdc, &data).map_err(|_| b"transferFrom_failed".to_vec())?;
 
-            // Verificar el movimiento (robusto a variantes USDC sin bool).
+            // Verify transfer.
             let got = self.usdc_balance(usdc, contract::address());
             if got < assets {
                 return Err(b"usdc_not_transferred".to_vec());
@@ -214,14 +211,8 @@ pub mod contract {
             Ok(shares)
         }
 
-        /// Quema shares del llamador y devuelve los USDC equivalentes. Si el saldo
-        /// inactivo no alcanza, retira el faltante de la estrategia activa (SDD §13).
-        /// CEI: contabilidad antes de cualquier llamada externa.
-        ///
-        /// Solo se pueden quemar participaciones que el llamador posea (`shares_of`). Esto es
-        /// lo que impide que un tercero vacíe el vault: antes, la única guarda era contra
-        /// `total_shares` global, así que cualquiera podía canjear el capital de todos los
-        /// retos activos en una sola transacción.
+        /// Burns caller's shares and returns USDC. Withdraws shortfall from strategy.
+        /// CEI pattern applied. Burns only from caller's balance to prevent unauthorized draining.
         pub fn redeem_shares(&mut self, shares: U256, to: Address) -> Result<U256, Vec<u8>> {
             self.require_not_paused()?;
             if shares.is_zero() {
@@ -247,7 +238,7 @@ pub mod contract {
             let new_assets = self.total_assets.get().saturating_sub(assets);
             self.total_assets.set(new_assets);
 
-            // Traer USDC desde la estrategia si el saldo inactivo no alcanza.
+            // Withdraw from strategy if idle balance is insufficient.
             let usdc = self.usdc.get();
             let idle = self.usdc_balance(usdc, contract::address());
             let shortfall = logic::withdraw_shortfall(assets, idle);
@@ -259,7 +250,7 @@ pub mod contract {
                     .set(deployed.saturating_sub(received));
             }
 
-            // Pagar USDC a `to`.
+            // Transfer USDC to destination.
             let call = IERC20::transferCall { to, amount: assets }.abi_encode();
             call::call(&mut *self, usdc, &call).map_err(|_| b"transfer_failed".to_vec())?;
 
@@ -272,9 +263,9 @@ pub mod contract {
             Ok(assets)
         }
 
-        // ── Estrategia de rendimiento (SDD §7.3) ───────────────────────────────
+        // ── Yield strategy ──
 
-        /// Despliega `amount` USDC inactivos en la estrategia activa. Solo admin.
+        /// Deploys idle USDC to active strategy. Admin only.
         pub fn deploy_to_strategy(&mut self, amount: U256) -> Result<(), Vec<u8>> {
             self.require_admin()?;
             let strategy = self.strategy.get();
@@ -282,7 +273,7 @@ pub mod contract {
             let idle = self.usdc_balance(usdc, contract::address());
             logic::validate_deploy_amount(amount, idle)?;
 
-            // Aprobar a la estrategia para gastar USDC del vault
+            // Approve strategy to spend vault's USDC.
             let approve = IERC20::approveCall {
                 spender: strategy,
                 amount,
@@ -304,7 +295,7 @@ pub mod contract {
             Ok(())
         }
 
-        /// Retira `amount` USDC de la estrategia de vuelta al vault. Solo admin.
+        /// Withdraws USDC from strategy to vault. Admin only.
         pub fn withdraw_from_strategy(&mut self, amount: U256) -> Result<(), Vec<u8>> {
             self.require_admin()?;
             if amount.is_zero() {
@@ -326,7 +317,7 @@ pub mod contract {
             Ok(())
         }
 
-        /// Drena por completo la estrategia activa. Útil en la migración con pausa.
+        /// Fully drains active strategy.
         pub fn withdraw_all_from_strategy(&mut self) -> Result<(), Vec<u8>> {
             self.require_admin()?;
             let strategy = self.strategy.get();
@@ -340,8 +331,7 @@ pub mod contract {
             self.withdraw_from_strategy(all)
         }
 
-        /// Acredita el rendimiento medido en la estrategia activa (sin argumento).
-        /// Solo admin. No-op si no hay estrategia configurada.
+        /// Realizes measured yield from active strategy. Admin only.
         pub fn realize_yield(&mut self) -> Result<(), Vec<u8>> {
             self.require_admin()?;
             let strategy = self.strategy.get();
@@ -364,7 +354,7 @@ pub mod contract {
             Ok(())
         }
 
-        /// Designa la estrategia activa. Solo admin (SDD §7.3).
+        /// Sets active strategy. Admin only.
         pub fn set_strategy(&mut self, strategy: Address) -> Result<(), Vec<u8>> {
             self.require_admin()?;
             let old = self.strategy.get();
@@ -376,16 +366,16 @@ pub mod contract {
             Ok(())
         }
 
-        /// Pausa el flujo de depósitos y canjes. Solo admin.
+        /// Pauses deposits and redemptions. Admin only.
         pub fn set_paused(&mut self, paused: bool) -> Result<(), Vec<u8>> {
             self.require_admin()?;
             self.paused.set(paused);
             Ok(())
         }
 
-        // ── Gobernanza (SDD §7.3) ─────────────────────────────────────────────
+        // ── Governance ──
 
-        /// Nombra un nuevo administrador (dos pasos). Solo admin.
+        /// Nominates a new admin (two-step). Admin only.
         pub fn transfer_ownership(&mut self, new_owner: Address) -> Result<(), Vec<u8>> {
             self.require_admin()?;
             if new_owner == Address::ZERO {
@@ -399,7 +389,7 @@ pub mod contract {
             Ok(())
         }
 
-        /// Acepta la nominación; solo puede hacerlo la dirección nominada.
+        /// Accepts admin nomination.
         pub fn accept_ownership(&mut self) -> Result<(), Vec<u8>> {
             let pending = self.pending_owner.get();
             if msg::sender() != pending {
@@ -415,7 +405,7 @@ pub mod contract {
             Ok(())
         }
 
-        // ── Lectura ──────────────────────────────────────────────────────────
+        // ── Read-only ──
 
         pub fn strategy(&self) -> Address {
             self.strategy.get()

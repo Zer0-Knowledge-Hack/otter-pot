@@ -2,7 +2,7 @@
 //!
 //! Este módulo se compila solo en el target wasm32 (es submodulo de `contract`):
 //! contiene la interfaz que el vault usa para desplegar/retirar USDC en
-//! cualquier protocolo de rendimiento sin conocer su implementación (SDD §7.3).
+//! cualquier protocolo de rendimiento sin conocer su implementación.
 
 use alloy_primitives::{Address, U256};
 use alloy_sol_types::{sol, SolCall};
