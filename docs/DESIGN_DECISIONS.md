@@ -133,11 +133,14 @@ Example: challenge A deposits 100; the strategy earns 10; challenge B deposits 1
 **Decision.** The confirmation store is a **Durable Object per challenge**, which gives a single writer and atomic read-modify-write. Each challenge follows an explicit lifecycle:
 
 ```
-collecting → consensus → submitted(txHash) → confirmed
-                              └──────────→ failed(reason) → (retry) → submitted
+collecting → consensus → submitting(lease) → submitted(txHash) → confirmed
+                                  │                  │
+                                  └────────→ failed(reason) → (manual retry) → submitting
 ```
 
-At most one transaction is in flight per challenge, and a failed transaction returns the challenge to a retryable state. Telegram updates are deduplicated by `update_id`.
+`submitting` is the lease phase: the right to send is granted atomically with a monotonic attempt number and a lease (180 s), renewed when the tx is broadcast. A `submitting` or `submitted` phase whose lease expired is treated as `failed("lease_expired")`, so a crashed holder is recoverable without an admin. Stale attempts are fenced: marks carrying an old attempt number are rejected. Before every send the Worker reads `challengeStatus`; an already resolved challenge becomes `confirmed` without sending.
+
+At most one transaction is in flight per challenge, and a failed transaction returns the challenge to a retryable state. Retry is manual (`/reintentar`, or `/confirmar` while `failed`) and open to any participant. History is written only on the first confirmation. Telegram updates are deduplicated by `update_id` per chat (a Durable Object with a 200-id FIFO window, failing open).
 
 **Consequences.** Votes survive restarts and concurrent voters cannot overwrite each other. KV is not used for votes because of its eventual consistency.
 
