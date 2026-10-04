@@ -8,7 +8,7 @@ extern crate alloc;
 /// Pure business logic: no EVM calls, testable on native target.
 pub mod logic;
 
-// ── Contract code, compiled only on the wasm32 target ───────────────────────
+// ── Contract code, compiled only on the wasm32 target ────
 #[cfg(any(target_arch = "wasm32", feature = "export-abi"))]
 pub mod contract {
     use super::logic;
@@ -25,7 +25,7 @@ pub mod contract {
         storage::{StorageAddress, StorageBool, StorageMap, StorageU256},
     };
 
-    // ── Interfaces (USDC ERC-20 + TreasuryVault) ──────────────────────────────
+    // ── Interfaces (USDC ERC-20 + TreasuryVault) ───────────
     sol! {
         interface IERC20 {
             function transferFrom(address from, address to, uint256 amount) external returns (bool);
@@ -38,7 +38,7 @@ pub mod contract {
         }
     }
 
-    // ── On-chain events ───────────────────────────────────────────────────────
+    // ── On-chain events ───────
 
     sol! {
         event ChallengeCreated(
@@ -60,7 +60,8 @@ pub mod contract {
             uint256 indexed challenge_id,
             address indexed winner,
             uint256 total_payout,
-            uint256 commission
+            uint256 commission,
+            uint256 surplus
         );
         event ChallengeRefunded(
             uint256 indexed challenge_id,
@@ -81,9 +82,13 @@ pub mod contract {
             address indexed previous_vault,
             address indexed new_vault
         );
+        event FeeRecipientUpdated(
+            address indexed previous_recipient,
+            address indexed new_recipient
+        );
     }
 
-    // ── Storage ───────────────────────────────────────────────────────────────
+    // ── Storage ───
 
     #[storage]
     pub struct Challenge {
@@ -108,15 +113,17 @@ pub mod contract {
         pub treasury_vault: StorageAddress,
         /// USDC (ERC-20) portal approved by participants.
         pub usdc: StorageAddress,
-        /// Authorized operators (Cloudflare Worker, SDD §9).
+        /// Authorized operators (Cloudflare Worker).
         pub operators: StorageMap<Address, StorageBool>,
         /// Commission rate in basis points (e.g. 500 = 5 %).
         pub base_commission_rate: StorageU256,
         /// Contract owner / admin.
         pub owner: StorageAddress,
+        /// Address that receives platform commission and yield surplus.
+        pub fee_recipient: StorageAddress,
     }
 
-    // ── Private helpers ───────────────────────────────────────────────────────
+    // ── Private helpers ───────
 
     impl ChallengePool {
         fn require_operator(&self) -> Result<(), Vec<u8>> {
@@ -147,13 +154,13 @@ pub mod contract {
         }
     }
 
-    // ── Public interface ──────────────────────────────────────────────────────
+    // ── Public interface ──────
 
     #[public]
     impl ChallengePool {
-        // ── Admin / initialization ─────────────────────────────────────────
+        // ── Admin / initialization ────────────
 
-        /// One-shot initializer: sets owner, USDC, vault and commission rate.
+        /// One-shot initializer: sets owner, fee_recipient, USDC, vault and commission rate.
         pub fn init(
             &mut self,
             treasury_vault: Address,
@@ -163,10 +170,28 @@ pub mod contract {
             if self.owner.get() != Address::ZERO {
                 return Err(b"inited".to_vec());
             }
+            if base_commission_rate > U256::from(logic::MAX_COMMISSION_BPS) {
+                return Err(b"ratemax".to_vec());
+            }
             self.owner.set(msg::sender());
+            self.fee_recipient.set(msg::sender());
             self.treasury_vault.set(treasury_vault);
             self.usdc.set(usdc);
             self.base_commission_rate.set(base_commission_rate);
+            Ok(())
+        }
+
+        pub fn set_fee_recipient(&mut self, new_recipient: Address) -> Result<(), Vec<u8>> {
+            self.require_owner()?;
+            if new_recipient == Address::ZERO {
+                return Err(b"recipient0".to_vec());
+            }
+            let previous_recipient = self.fee_recipient.get();
+            self.fee_recipient.set(new_recipient);
+            evm::log(FeeRecipientUpdated {
+                previous_recipient,
+                new_recipient,
+            });
             Ok(())
         }
 
@@ -189,6 +214,9 @@ pub mod contract {
 
         pub fn set_commission_rate(&mut self, rate_bps: U256) -> Result<(), Vec<u8>> {
             self.require_owner()?;
+            if rate_bps > U256::from(logic::MAX_COMMISSION_BPS) {
+                return Err(b"ratemax".to_vec());
+            }
             let previous_rate = self.base_commission_rate.get();
             self.base_commission_rate.set(rate_bps);
             evm::log(CommissionRateUpdated {
@@ -198,8 +226,7 @@ pub mod contract {
             Ok(())
         }
 
-        /// Permite al owner actualizar la dirección del TreasuryVault
-        /// (útil cuando se redeploya el vault sin redeployar el pool).
+        /// Updates the TreasuryVault address.
         pub fn set_treasury_vault(&mut self, new_vault: Address) -> Result<(), Vec<u8>> {
             self.require_owner()?;
             if new_vault == Address::ZERO {
@@ -214,7 +241,7 @@ pub mod contract {
             Ok(())
         }
 
-        // ── Challenge lifecycle ────────────────────────────────────────────
+        // ── Challenge lifecycle ───────────────
 
         pub fn create_challenge(
             &mut self,
@@ -294,7 +321,7 @@ pub mod contract {
             )
             .map_err(|e| e.as_bytes().to_vec())?;
 
-            // CEI: escribimos el estado antes de la llamada externa.
+            // CEI pattern: state update before external call.
             let new_deposited = deposited_count + U256::from(1u8);
             {
                 let mut ch = self.challenges.setter(challenge_id);
@@ -308,12 +335,12 @@ pub mod contract {
                 });
             }
 
-            // Pull USDC del participante al pool.
+            // Pull USDC from participant.
             let usdc = self.usdc.get();
             let data = self.usdc_transfer_from(sender, contract::address(), required_deposit);
             call::call(&mut *self, usdc, &data).map_err(|_| b"pull".to_vec())?;
 
-            // Todos financiaron: Bloqueado y fondos al vault (mint shares).
+            // All participants deposited: lock challenge and deposit to vault.
             if new_deposited == participant_count {
                 let total = total_pool(required_deposit, participant_count);
 
@@ -348,27 +375,35 @@ pub mod contract {
         ) -> Result<(), Vec<u8>> {
             self.require_operator()?;
 
-            let (status, treasury_shares, winner_is_participant) = {
+            let (
+                status,
+                treasury_shares,
+                winner_is_participant,
+                required_deposit,
+                participant_count,
+            ) = {
                 let ch = self.challenges.setter(challenge_id);
                 (
-                    u8::try_from(ch.status.get()).unwrap(),
+                    u8::try_from(ch.status.get()).map_err(|_| b"bad_status".to_vec())?,
                     ch.treasury_shares.get(),
                     ch.participants.get(winner),
+                    ch.required_deposit.get(),
+                    ch.participant_count.get(),
                 )
             };
 
-            // El ganador debe pertenecer al reto: el operador relaya una decisión, no la elige.
+            // Operator relays a decision; winner must be a participant.
             validate_confirm_result(status, winner, winner_is_participant)
                 .map_err(|e| e.as_bytes().to_vec())?;
 
-            // CEI: estado terminal antes de la llamada externa.
+            // CEI pattern: set terminal state.
             {
                 let mut ch = self.challenges.setter(challenge_id);
                 ch.status.set(U256::from(STATE_RESUELTO));
                 ch.winner.set(winner);
             }
 
-            // Redimir shares (capital + yield), comisión y pagar al ganador.
+            // Redeem shares (principal + yield).
             let vault = self.treasury_vault.get();
             let rede = ITreasuryVault::redeemSharesCall {
                 shares: treasury_shares,
@@ -378,19 +413,37 @@ pub mod contract {
             let out = call::call(&mut *self, vault, &rede).map_err(|_| b"vred".to_vec())?;
             let recovered = read_u256(&out);
 
-            let rate = self.base_commission_rate.get();
-            let (winner_payout, commission) = resolve_payout(recovered, rate);
+            // Abort if vault returns 0.
+            if recovered.is_zero() {
+                return Err(b"norecover".to_vec());
+            }
 
-            // Pagar USDC exclusivamente al ganador (SDD §11).
+            let pool = total_pool(required_deposit, participant_count);
+            let rate = self.base_commission_rate.get();
+            let (winner_payout, commission, surplus) = resolve_payout(recovered, pool, rate);
+
             let usdc = self.usdc.get();
-            let pay = self.usdc_transfer(winner, winner_payout);
-            call::call(&mut *self, usdc, &pay).map_err(|_| b"pay".to_vec())?;
+
+            // Pay USDC to winner.
+            if !winner_payout.is_zero() {
+                let pay = self.usdc_transfer(winner, winner_payout);
+                call::call(&mut *self, usdc, &pay).map_err(|_| b"pay".to_vec())?;
+            }
+
+            // Transfer fee and surplus to fee recipient.
+            let total_fee = commission + surplus;
+            if !total_fee.is_zero() {
+                let fee_dest = self.fee_recipient.get();
+                let pay_fee = self.usdc_transfer(fee_dest, total_fee);
+                call::call(&mut *self, usdc, &pay_fee).map_err(|_| b"payfee".to_vec())?;
+            }
 
             evm::log(ChallengeResolved {
                 challenge_id,
                 winner,
                 total_payout: winner_payout,
                 commission,
+                surplus,
             });
             Ok(())
         }
@@ -411,13 +464,13 @@ pub mod contract {
             let now = U256::from(stylus_sdk::block::timestamp());
             validate_refund(status, deadline, now).map_err(|e| e.as_bytes().to_vec())?;
 
-            // CEI: Reembolsado antes de la llamada externa.
+            // CEI pattern.
             {
                 let mut ch = self.challenges.setter(challenge_id);
                 ch.status.set(U256::from(STATE_REEMBOLSADO));
             }
 
-            // Redimir shares del vault al pool.
+            // Redeem shares from vault.
             let vault = self.treasury_vault.get();
             let rede = ITreasuryVault::redeemSharesCall {
                 shares: treasury_shares,
@@ -429,7 +482,7 @@ pub mod contract {
 
             let per_participant = refund_per_participant(recovered, participant_count);
 
-            // Guardar reembolso proporcional por participante.
+            // Save proportional refund per participant.
             {
                 let mut ch = self.challenges.setter(challenge_id);
                 ch.treasury_shares.set(per_participant);
@@ -467,7 +520,7 @@ pub mod contract {
 
             let amount = per_participant;
 
-            // Marcar como reclamado (CEI) y transferir USDC.
+            // CEI: mark as claimed and transfer USDC.
             {
                 let mut ch = self.challenges.setter(challenge_id);
                 ch.claimed_refund.setter(sender).set(true);
@@ -479,7 +532,6 @@ pub mod contract {
                 amount,
             });
 
-            // Pagar USDC al participante.
             let usdc = self.usdc.get();
             let pay = self.usdc_transfer(sender, amount);
             call::call(&mut *self, usdc, &pay).map_err(|_| b"refpay".to_vec())?;
@@ -487,7 +539,7 @@ pub mod contract {
             Ok(())
         }
 
-        // ── Read-only helpers ──────────────────────────────────────────────
+        // ── Read-only helpers ─────────────────
 
         pub fn challenge_status(&self, challenge_id: U256) -> Result<u8, Vec<u8>> {
             Ok(u8::try_from(self.challenges.getter(challenge_id).status.get()).unwrap())
@@ -499,6 +551,10 @@ pub mod contract {
 
         pub fn commission_rate(&self) -> Result<U256, Vec<u8>> {
             Ok(self.base_commission_rate.get())
+        }
+
+        pub fn fee_recipient(&self) -> Result<Address, Vec<u8>> {
+            Ok(self.fee_recipient.get())
         }
     }
 
