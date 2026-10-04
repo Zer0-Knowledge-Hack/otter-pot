@@ -97,7 +97,7 @@ graph LR
 | **Luishinño Paricena** | Security | Landing page and Mini App screens (ES/EN i18n, PWA, mobile optimization); security review of the v8 contracts; end-to-end and negative tests on Arbitrum Sepolia; Sweeper liquidity buffer; deposit page publication with mobile wallet support. |
 | **Fernando Vazquez** | Front | Public architecture diagram; commission/TVL/challenge metrics in the Mini App; repository code of conduct. |
 
-## 🔄 Buildathon delta: what changed for Arbitrum Open House Singapore
+## 🔄 What's new for Arbitrum Open House Singapore
 
 OtterPot was built at **ETH Lima 2026** (2nd place) as an Arbitrum Stylus project. During **ETHOnline 2026** we explored a parallel deployment on Circle's Arc chain (`packages/arc`, Solidity) — that track is no longer active; the contracts shipped for this buildathon are the native Stylus ones in `packages/stylus`.
 
