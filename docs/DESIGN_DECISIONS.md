@@ -1,6 +1,6 @@
 # Design Decisions
 
-Decision log for the current iteration ("v8") of OtterPot. [`SDD.md`](SDD.md) remains the source of truth for the product; each decision here is folded into the SDD when it is implemented. Work items are tracked in the **ArbitrumSingapur** milestone; see [`ROADMAP.md`](ROADMAP.md).
+Decision log for the current iteration ("v8") of OtterPot. [`SDD.md`](SDD.md) remains the source of truth for the product. SDD v8 incorporates DD-01 to DD-10 as the target behavior; its section 17 tracks which of them are implemented and which are pending. Work items are tracked in the **ArbitrumSingapur** milestone; see [`ROADMAP.md`](ROADMAP.md).
 
 Each entry states the context, the decision, its consequences and how it is verified (see [`TESTING.md`](TESTING.md)).
 
@@ -25,7 +25,7 @@ Each entry states the context, the decision, its consequences and how it is veri
 
 Team decision: A. Keep the current model: fee = min(target, recovered), winner = min(pool, recovered − fee). The winner can receive less than the pool. Pitch / README / #9 must not claim no-loss or “the pot never shrinks”.
 
-**Context.** [`SDD.md`](SDD.md) §8.2 specifies that yield earned by a challenge is applied to its commission first and that the winner never receives more than the pool. The current `resolve_payout` applies the commission rate to the *recovered* amount (principal plus yield) and pays the winner the remainder, so yield can raise the winner's payout above the pool. The SDD formula `fee = max(target − yield, 0)` also leaves the platform with no fee whenever yield covers the commission.
+**Context.** SDD v7 §8.2 specified that yield earned by a challenge is applied to its commission first and that the winner never receives more than the pool. The current `resolve_payout` applies the commission rate to the *recovered* amount (principal plus yield) and pays the winner the remainder, so yield can raise the winner's payout above the pool. The SDD formula `fee = max(target − yield, 0)` also leaves the platform with no fee whenever yield covers the commission.
 
 **Decision.** The platform always receives the target commission. Yield funds it first; participants only cover the shortfall. Anything left after the winner and the fee are paid is the *surplus*, which is sent to the fee recipient.
 
