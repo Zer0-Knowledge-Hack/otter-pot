@@ -34,9 +34,30 @@ yarn-error.log*
 .env.development.local
 .env.test.local
 .env.production.local
+# El .example no lleva secretos: documenta que variables hacen falta.
+!.env.local.example
 !.env.example
 
 # typescript
 *.tsbuildinfo
+
+# lockfiles de otros gestores: el monorepo usa Yarn (yarn.lock en la raíz)
+package-lock.json
+pnpm-lock.yaml
+pnpm-workspace.yaml
+
+# salida de `next build` (export estático) copiada por error dentro de public/
+/public/**/__next*
+/public/**/index.html
+/public/**/index.txt
+/public/404.html
+/public/404/
+/public/_not-found/
+/public/debug-image.zip
+/public/debug-image/
+
+# borradores locales
+next.config2.js
+build.log
 
 ipfs-upload.config.json

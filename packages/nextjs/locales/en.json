@@ -1,0 +1,524 @@
+{
+  "languageSwitcher": {
+    "label": "Language",
+    "es": "View in Spanish",
+    "en": "View in English"
+  },
+  "nav": {
+    "product": "The problem",
+    "howItWorks": "How it works",
+    "community": "Community",
+    "manual": "Guide",
+    "demo": "Demo",
+    "faq": "FAQ",
+    "contact": "Contact",
+    "signIn": "Sign in",
+    "getStarted": "Create my challenge",
+    "openMenu": "Open menu",
+    "closeMenu": "Close menu",
+    "telegramGroup": "Telegram group",
+    "feedback": "Reviews",
+    "team": "Team",
+    "tryBot": "Try the bot",
+    "botGuide": "Use the bot"
+  },
+  "hero": {
+    "eyebrow": "Challenges with friends · Pot secured on Arbitrum",
+    "title": "Challenge your friends. The pot's already collected.",
+    "subtitle": "The pot exists before there's a winner. Everyone pays in when they join, into an Arbitrum contract written in Rust with Stylus, and the money can only go to the winner or back to whoever put it in.",
+    "ctaPrimary": "Create my challenge",
+    "ctaSecondary": "See how it works",
+    "install": "Install OtterPot",
+    "group": "Group",
+    "miniApp": "Mini App",
+    "manual": "Guide",
+    "mascotAlt": "OtterPot mascot"
+  },
+  "builtOn": "Built on",
+  "product": {
+    "title": "You win a $50 pot and collect $30",
+    "subtitle": "It happens in every pot between friends: two out of five will \"pay you later\". Today the pot is just a promise in the group chat, and chasing a friend for money is awkward. OtterPot collects it upfront.",
+    "pillars": {
+      "create": {
+        "title": "Set it up in the group",
+        "body": "Pick the goal, the amount and the deadline. Everyone joins with one tap."
+      },
+      "fund": {
+        "title": "Everyone pays in first",
+        "body": "Nobody plays without depositing. The pot is complete from day one."
+      },
+      "win": {
+        "title": "The winner gets paid automatically",
+        "body": "Once the majority confirms who won, the contract pays out. No chasing anyone."
+      }
+    }
+  },
+  "how": {
+    "title": "How it works",
+    "subtitle": "From the group chat to the payout in five steps.",
+    "steps": {
+      "create": {
+        "title": "Create",
+        "body": "Choose the goal, amount and deadline from Telegram."
+      },
+      "invite": {
+        "title": "Invite your group",
+        "body": "Share it in the chat with one tap."
+      },
+      "deposit": {
+        "title": "Everyone deposits",
+        "body": "The challenge only starts once everyone has paid in."
+      },
+      "complete": {
+        "title": "The group confirms",
+        "body": "The majority votes on who hit the goal."
+      },
+      "claim": {
+        "title": "The winner gets paid",
+        "body": "The contract pays out. If the deadline passes with no agreement, everyone gets their money back."
+      }
+    },
+    "manuals": "Read the guides",
+    "faucets": "Get test funds"
+  },
+  "demo": {
+    "eyebrow": "Presentation",
+    "title": "OtterPot in two minutes",
+    "subtitle": "A real pot, from setup to payout, on video and in the deck.",
+    "videoTitle": "OtterPot presentation",
+    "youtube": {
+      "title": "Watch on YouTube",
+      "body": "Presentation video"
+    },
+    "pdf": {
+      "title": "Project deck",
+      "body": "Shareable PDF"
+    },
+    "simpleManual": {
+      "title": "Quick guide",
+      "body": "Written for judges and first-time visitors"
+    },
+    "faucets": {
+      "title": "Test funds",
+      "body": "Test USDC and ETH to try the full flow"
+    },
+    "manualVideo": {
+      "title": "Video guide",
+      "body": "How to create a challenge and pay, step by step"
+    }
+  },
+  "community": {
+    "eyebrow": "Telegram community",
+    "title": "Challenges start where your group already is",
+    "subtitle": "No new apps, no sign-up: join the official group or message the bot at {bot}.",
+    "imageAlt": "Friends setting up a challenge on Telegram",
+    "joinGroup": "Join the group"
+  },
+  "why": {
+    "title": "Why Arbitrum",
+    "items": {
+      "secure": {
+        "title": "Rust contract, built with Stylus",
+        "body": "Stylus lets us write the contract in Rust: reentrancy, the classic attack for draining a pot, is blocked by default, and the logic costs less gas than in Solidity."
+      },
+      "transparent": {
+        "title": "Nobody holds the money",
+        "body": "If we held the pot, you'd have to trust us. In the contract, anyone can verify it."
+      },
+      "fast": {
+        "title": "Cheap and fast",
+        "body": "On Arbitrum, a deposit costs a fraction of what it would on Ethereum and confirms in seconds."
+      },
+      "community": {
+        "title": "Rules that don't change",
+        "body": "What the group agreed on when the challenge started is what gets enforced at the end."
+      },
+      "easy": {
+        "title": "All inside Telegram",
+        "body": "Create, deposit and confirm without leaving the chat, right from your phone."
+      },
+      "rewards": {
+        "title": "Real stakes",
+        "body": "With the money already in, hitting the goal stops being just a promise."
+      }
+    }
+  },
+  "useCases": {
+    "title": "Today, between friends. Tomorrow, for any community",
+    "items": {
+      "fitness": {
+        "title": "Fitness",
+        "body": "The gym challenge, with a real prize."
+      },
+      "learning": {
+        "title": "Learning",
+        "body": "Courses, languages and study goals."
+      },
+      "gaming": {
+        "title": "Gaming",
+        "body": "Tournaments between friends with a guaranteed pot."
+      },
+      "saving": {
+        "title": "Saving",
+        "body": "Savings goals with group accountability."
+      },
+      "teams": {
+        "title": "Teams",
+        "body": "Work goals and sprints."
+      },
+      "universities": {
+        "title": "Universities",
+        "body": "Academic competitions and clubs."
+      },
+      "companies": {
+        "title": "Companies",
+        "body": "Internal incentives with clear rules."
+      },
+      "hackathons": {
+        "title": "Hackathons",
+        "body": "Prizes that exist from day one."
+      }
+    }
+  },
+  "gallery": {
+    "title": "The app at a glance",
+    "items": {
+      "dashboard": {
+        "title": "Dashboard",
+        "body": "Your active pots and balance in one place."
+      },
+      "create": {
+        "title": "Create a challenge",
+        "body": "A simple wizard, just a few steps."
+      },
+      "wallet": {
+        "title": "Wallet",
+        "body": "Connect your wallet and deposit in one tap."
+      },
+      "ranking": {
+        "title": "Leaderboard",
+        "body": "Who completes the most challenges in your community."
+      },
+      "profile": {
+        "title": "Profile",
+        "body": "Level, points and preferences."
+      },
+      "mobile": {
+        "title": "Made for your phone",
+        "body": "One-handed, right inside Telegram."
+      }
+    }
+  },
+  "faq": {
+    "title": "FAQ",
+    "items": {
+      "blockchain": {
+        "q": "Do I need to know about blockchain?",
+        "a": "No. You create the challenge and deposit from Telegram; the technical part runs behind the scenes."
+      },
+      "funds": {
+        "q": "Who holds the money during the challenge?",
+        "a": "Nobody: the contract controls it. It can only pay a participant of the challenge or refund each person what they put in. Neither the bot nor our team can send it anywhere else."
+      },
+      "telegram": {
+        "q": "Can I use it from Telegram only?",
+        "a": "Yes. You can create challenges, invite people and track progress from the bot and the Mini App."
+      },
+      "noContract": {
+        "q": "What if the group can't agree?",
+        "a": "If the deadline passes with no confirmed winner, the contract refunds everyone's deposit, with no fee."
+      },
+      "cost": {
+        "q": "How much does it cost?",
+        "a": "Creating an account is free. When a challenge is resolved, a fee is taken from the pot; refunds are fee-free."
+      }
+    }
+  },
+  "contact": {
+    "title": "Contact",
+    "subtitle": "Want to try OtterPot with your group or community? Drop us a line.",
+    "location": "Bolivia · LATAM",
+    "telegramGroup": "Telegram group",
+    "notConfigured": "The form isn't available right now. Reach us on Telegram instead.",
+    "name": "Name",
+    "email": "Email",
+    "message": "Message",
+    "send": "Send message",
+    "sending": "Sending…",
+    "success": "Thanks! We got your message and will get back to you soon.",
+    "error": "We couldn't send your message. Please try again."
+  },
+  "finalCta": {
+    "mascotAlt": "OtterPot",
+    "title": "Your next challenge, with the pot collected from day one",
+    "subtitle": "Set up the challenge, invite your group and let the contract handle the money.",
+    "primary": "Create my challenge",
+    "group": "Join the group"
+  },
+  "mobileBar": {
+    "group": "Group",
+    "start": "Create challenge"
+  },
+  "footer": {
+    "tagline": "The pot exists before there's a winner. Challenges between friends, with the money secured from day one.",
+    "productHeading": "Product",
+    "whatIs": "The problem",
+    "howItWorks": "How it works",
+    "manual": "User guide",
+    "demo": "Video and deck",
+    "start": "Create my challenge",
+    "communityHeading": "Community",
+    "telegramGroup": "Telegram group",
+    "rights": "© {year} OtterPot. All rights reserved.",
+    "disclaimer": "Testnet prototype (Arbitrum Sepolia): uses test USDC with no real value. While a challenge runs, the pot may be deposited in Aave to earn yield, which adds that protocol's risk. Next step: support for Paxos USDG."
+  },
+  "liveStrip": {
+    "title": "Live activity",
+    "unavailable": "Live data unavailable",
+    "challenges": "Challenges",
+    "active": "Active",
+    "sync": "Status",
+    "ok": "Online",
+    "off": "Offline",
+    "onChain": "in the contract",
+    "offChain": "not in the contract yet"
+  },
+  "feedback": {
+    "eyebrow": "Reviews",
+    "title": "What the judges say",
+    "subtitle": "Reviews from the ETH Lima representatives who evaluated OtterPot, and what we did about each point.",
+    "tagClarity": "Clarity",
+    "tagUtility": "Utility",
+    "responseLabel": "Team response",
+    "items": {
+      "antonella": {
+        "date": "Aug 11, 2026",
+        "quote": "I liked that you can create a routine, save it, track it, earn rewards, connect your wallet and do different activities inside the app's challenges.",
+        "response": "Today, progress is validated with evidence and a group vote. Automatic activity validation through Google Fit / Health Connect is on the roadmap."
+      },
+      "gianella": {
+        "date": "Aug 8, 2026",
+        "quote": "OtterPot's proposal stands out for solving a very real friction in groups: having to trust one person with the money. Bringing smart contracts directly into Telegram makes the experience accessible and natural, while configurable consensus and automatic refunds significantly reduce the risks. On top of that, connecting these social challenges with DeFi gives it interesting potential to bring new users into the Web3 ecosystem.",
+        "response": "On DeFi: while the pot is locked it can earn yield, and that yield goes first toward covering the fee. Anything left over is a bonus for the winner."
+      },
+      "alejandra": {
+        "date": "Aug 8, 2026",
+        "quote": "The proposal is well focused and the use of blockchain is clearly justified: pot custody, resolution rules and refunds genuinely benefit from running without an intermediary. As an improvement, I'd revisit the consensus mechanism to prevent collusion or manipulation between participants and better explain what happens with ambiguous results. It would also be important to clearly communicate the risk of temporarily placing funds in Aave, since custody is no longer fully passive. Finally, the Stylus argument is interesting, but it should be backed by real gas metrics against an equivalent Solidity implementation. That would make the technical case for using Arbitrum much stronger.",
+        "response": "For ambiguous results: if the deadline passes without a majority, the contract refunds everyone with no fee. Against collusion, a designated-judge mode is on the roadmap. The Aave risk is now explained in the footer, and we're measuring Stylus gas against Solidity."
+      }
+    },
+    "role": "ETH Lima representative",
+    "readMore": "Read more",
+    "readLess": "Show less",
+    "prev": "Previous review",
+    "next": "Next review",
+    "goTo": "Go to review {n}",
+    "region": "Judges' reviews"
+  },
+  "team": {
+    "title": "Who's building it",
+    "roles": {
+      "blockchain": "Blockchain Developer",
+      "frontend": "Frontend Developer",
+      "backend": "Backend Developer",
+      "business": "Business Developer"
+    }
+  },
+  "art": {
+    "hero": {
+      "aria": "An OtterPot challenge on a phone: a 250 USDC pot locked in the contract and 5 of 5 friends already paid in",
+      "challenge": "Group challenge",
+      "goal": "Run 50 km in 30 days",
+      "pot": "250 USDC",
+      "locked": "Pot locked",
+      "deposited": "5/5 paid in",
+      "vote": "Vote for the winner",
+      "chipTelegram": "From Telegram",
+      "chipContract": "On Arbitrum",
+      "chipFriends": "5 friends"
+    },
+    "friends": {
+      "aria": "Four friends each deposit 50 USDC into a pot locked in the contract; the pot goes to the winner or back to everyone",
+      "deposit": "+50",
+      "pot": "200 USDC",
+      "potCaption": "Pot in the contract",
+      "winner": "Winner",
+      "refund": "No agreement: everyone's refunded"
+    },
+    "botChat": {
+      "aria": "Telegram chat with the OtterPot bot: a challenge is created with /nuevo, friends join, the pot is locked and the winner gets paid",
+      "group": "Gym challenges",
+      "members": "4 members",
+      "bot": "OtterPot",
+      "cmdNew": "/nuevo 25 24",
+      "setup": "Challenge set · 25 USDC · 24 h",
+      "join": "Me sumo (I'm in)",
+      "joined": "Ana, Beto and Caro joined",
+      "locked": "Pot: 100 USDC · 4/4 paid in",
+      "cmdConfirm": "/confirmar @ana",
+      "paid": "Ana won 100 USDC"
+    }
+  },
+  "botGuide": {
+    "eyebrow": "Tutorial",
+    "title": "How to use the bot",
+    "subtitle": "It all happens in your group chat. It takes less time than reading this.",
+    "openBot": "Open {bot}",
+    "note": "Deposits currently use test USDC (Arbitrum Sepolia).",
+    "steps": {
+      "find": {
+        "title": "Add the bot to your group",
+        "body": "Open Telegram, search for {bot} and add it to the group you'll play in."
+      },
+      "create": {
+        "title": "Type /nuevo",
+        "body": "Set the amount and deadline. For example, /nuevo 25 24 sets up a 25 USDC challenge for 24 hours."
+      },
+      "join": {
+        "title": "Everyone signs up",
+        "body": "Participants tap \"Me sumo\" (I'm in). Once everyone's in, /abrir creates the challenge in the contract."
+      },
+      "deposit": {
+        "title": "Everyone pays in",
+        "body": "/depositar opens the Mini App, and each person signs their share from their own wallet."
+      },
+      "confirm": {
+        "title": "The group confirms",
+        "body": "When it's over, everyone votes for the winner with /confirmar @username."
+      },
+      "payout": {
+        "title": "The contract pays out",
+        "body": "With a majority, the pot goes to the winner. If the deadline passes with no agreement, /reembolso gives everyone their money back."
+      }
+    },
+    "watchVideo": "Watch the video guide"
+  },
+  "installPwa": {
+    "title": "Install OtterPot",
+    "ios": "On iPhone: tap Share, then “Add to Home Screen”.",
+    "prompt": "Put the app on your home screen. Fast, no app store needed.",
+    "manual": "Add OtterPot to your home screen from your browser menu.",
+    "iosShort": "Share → Add",
+    "install": "Install app",
+    "installing": "Installing…",
+    "dismiss": "Got it",
+    "close": "Close"
+  },
+  "appShell": {
+    "groups": {
+      "main": "Main",
+      "social": "Community",
+      "account": "Account"
+    },
+    "nav": {
+      "home": "Home",
+      "wallet": "Wallet",
+      "myChallenges": "My challenges",
+      "discover": "Discover",
+      "explore": "Explore",
+      "ranking": "Leaderboard",
+      "community": "Community",
+      "calendar": "Calendar",
+      "rewards": "Rewards",
+      "activity": "Activity",
+      "invites": "Invites",
+      "profile": "Profile",
+      "settings": "Settings",
+      "contracts": "Contracts"
+    },
+    "create": "Create challenge",
+    "createShort": "Create",
+    "backHome": "Back to home",
+    "openMenu": "Open menu",
+    "closeMenu": "Close menu",
+    "notifications": "Notifications",
+    "logout": "Log out",
+    "loggingOut": "Logging out…"
+  },
+  "account": {
+    "title": "Your access",
+    "google": "Google",
+    "wallet": "Wallet",
+    "linked": "Connected",
+    "notLinked": "Not linked",
+    "linkGoogle": "Link Google",
+    "connectWallet": "Connect",
+    "both": "Full access: saved account and payments.",
+    "hint": "One is enough to get in. With both, your challenges stay in your account and you pay from your wallet.",
+    "guest": "You're browsing as a guest. Link Google or your wallet to create and pay for challenges."
+  },
+  "walletPage": {
+    "title": "Wallet",
+    "morning": "Good morning",
+    "afternoon": "Good afternoon",
+    "evening": "Good evening",
+    "balanceLabel": "Available balance",
+    "testnet": "Testnet · no real value",
+    "actions": {
+      "receive": "Receive",
+      "pay": "Pay challenge",
+      "create": "Create challenge",
+      "faucet": "Test funds"
+    },
+    "receiveTitle": "Receive funds",
+    "receiveBody": "Scan the QR code or copy the address. Only send USDC or ETH on {network}.",
+    "copyAddress": "Copy address",
+    "copied": "Copied!",
+    "close": "Close",
+    "assets": "My assets",
+    "usdcName": "USD Coin",
+    "usdcHint": "For challenge deposits",
+    "ethName": "Ether",
+    "ethHint": "Pays the gas for each signature",
+    "allowanceName": "Challenge allowance",
+    "allowanceHint": "USDC you've allowed the contract to use",
+    "connectTitle": "Connect your wallet",
+    "connectBody": "With your wallet you can see your balance, receive funds and pay for challenges. Never share your secret phrase.",
+    "wrongNetwork": "Wrong network",
+    "wrongNetworkBody": "OtterPot runs on {network}. Switch networks so your payments go through.",
+    "switchNetwork": "Switch to {network}",
+    "notifyTitle": "Phone alerts",
+    "notifyBody": "We'll let you know about deposits and challenge activity.",
+    "notifyOn": "On",
+    "notifyEnable": "Turn on",
+    "notifyUnsupported": "This browser doesn't support notifications. Try Chrome or Edge on Android.",
+    "notifyOff": "Alerts turned off.",
+    "notifyDenied": "Permission denied. Turn it on in your browser settings.",
+    "notifyDone": "Notifications turned on for this device.",
+    "notifyTestTitle": "OtterPot is ready",
+    "notifyTestBody": "We'll let you know about deposits and challenge activity.",
+    "technical": "Technical details",
+    "importToken": "Import USDC into MetaMask",
+    "decimals": "Decimals",
+    "copyToken": "Copy USDC address",
+    "contracts": "Contracts",
+    "explorer": "View on Arbiscan",
+    "loading": "Activating wallet…",
+    "loadingBody": "Your balance will show up in a few seconds."
+  },
+  "login": {
+    "title": "Sign in to OtterPot",
+    "subtitle": "Choose how to sign in. One is enough; with both you get everything.",
+    "googleTitle": "Continue with Google",
+    "googleBody": "Saves your challenges and profile to your account.",
+    "walletTitle": "Connect wallet",
+    "walletBody": "To pay for and collect challenges with your USDC.",
+    "or": "or",
+    "connecting": "Connecting…",
+    "redirecting": "Redirecting to Google… come back to this tab when you're done.",
+    "noWallet": "We couldn't find a wallet extension. Install MetaMask or use WalletConnect.",
+    "lan": "You're on {host}. Use MetaMask or WalletConnect.",
+    "network": "Network",
+    "walletConnected": "Wallet connected · signing in…",
+    "walletWrongNetwork": "Wrong network: switch it when connecting.",
+    "guest": "Browse without an account",
+    "guestHint": "Guest mode: you can look around, but you need Google or your wallet to create or pay.",
+    "firebaseOff": "Google sign-in isn't available right now.",
+    "sideTitle": "Your pot, safe and at hand",
+    "sidePoints": {
+      "custody": "The money sits in a contract on Arbitrum, not in anyone's hands.",
+      "receive": "Receive funds with your QR code and pay for challenges in two taps.",
+      "access": "Sign in with Google, your wallet, or both."
+    }
+  }
+}

@@ -22,18 +22,14 @@ import { wagmiConfig } from "~~/services/web3/wagmiConfig";
 import { arbitrumNitro, initBurnerPK } from "~~/utils/scaffold-stylus";
 import * as viemChains from "viem/chains";
 
-const MARKETING_PATHS = new Set(["/", "/login", "/app", "/como-usar", "/manual"]);
+// Páginas con diseño propio (`DESIGN.md`): no llevan el header, el fondo ni el footer
+// del scaffold. Solo las rutas heredadas (/debug, /blockexplorer) los conservan.
+const OWN_LAYOUT_PATHS = ["/depositar"];
 
 const ScaffoldEthApp = ({ children }: { children: ReactNode }) => {
   const { targetNetwork } = useTargetNetwork();
   const pathname = usePathname();
-  const isMarketing =
-    MARKETING_PATHS.has(pathname) ||
-    pathname?.startsWith("/app") ||
-    pathname?.startsWith("/como-usar") ||
-    pathname?.startsWith("/manual") ||
-    pathname?.startsWith("/como-usar") ||
-    pathname?.startsWith("/login");
+  const isMarketing = pathname === "/" || OWN_LAYOUT_PATHS.some(path => pathname?.startsWith(path));
 
   useEffect(() => {
     if (targetNetwork.id === arbitrumNitro.id) {
