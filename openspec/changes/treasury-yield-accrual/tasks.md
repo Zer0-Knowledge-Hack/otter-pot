@@ -57,9 +57,9 @@ Path: `packages/stylus/contracts/treasury_vault/src/logic.rs`
 ## Commit 4: test(scripts): accrual devnode scenarios (~125)
 
 - [ ] 4.1 Open risk: run the existing section 8.4 on devnode; confirm it passes (owner may hold no vault shares, `insufficient_shares`) BEFORE adding section 9. If it fails, fix 8.4 in this commit.
-- [ ] 4.2 Add `simulateLoss`, `LossSimulated` and `YieldLossRecognized` ABI strings in `packages/stylus/scripts/integration-test-usdc.ts`.
-- [ ] 4.3 Add TS floor-math mirror helpers computed from on-chain pre-state (shared vault is not empty).
-- [ ] 4.4 Add `runAccrualTests` (local only, after section 8) with scenarios: fair split, loss plus last-redeemer, no strategy (`setStrategy(0)` after `withdrawAllFromStrategy`), failed read (`setStrategy(<EOA>)`, price unchanged), restore strategy.
+- [x] 4.2 Add `simulateLoss`, `LossSimulated` and `YieldLossRecognized` ABI strings in `packages/stylus/scripts/integration-test-usdc.ts`.
+- [x] 4.3 Add TS floor-math mirror helpers computed from on-chain pre-state (shared vault is not empty).
+- [x] 4.4 Add `runAccrualTests` (local only, after section 8) with scenarios: fair split, loss plus last-redeemer, no strategy (`setStrategy(0)` after `withdrawAllFromStrategy`), failed read (`setStrategy(<EOA>)`, price unchanged), restore strategy.
 - [ ] 4.5 Run the devnode script; all sections pass.
 
 ## Commit 5: docs(sdd): accrual guards, DD-05 implemented (~5)

@@ -79,6 +79,9 @@ const VAULT_ABI = [
   "function withdrawAllFromStrategy() returns (bool)",
   "function setPaused(bool) returns (bool)",
   "function paused() view returns (bool)",
+  "function sharesOf(address) view returns (uint256)",
+  "event YieldRealized(uint256 added_assets, uint256 total_assets)",
+  "event YieldLossRecognized(uint256 lost_assets, uint256 total_assets)",
 ] as const;
 
 const STRATEGY_ABI = [
@@ -89,7 +92,9 @@ const STRATEGY_ABI = [
   "function balanceOf() view returns (uint256)",
   "function totalAssets() view returns (uint256)",
   "function mint(uint256) returns (bool)",
+  "function simulateLoss(uint256) returns (bool)",
   "function vault() view returns (address)",
+  "event LossSimulated(uint256 amount)",
 ] as const;
 
 // ─── Superficies tipadas de los contratos que invocamos ──────────────────────
@@ -118,6 +123,10 @@ interface PoolLike {
 }
 
 interface VaultLike {
+  readonly interface: Interface;
+  sharesOf(account: string): Promise<bigint>;
+  deposit(assets: bigint): Promise<ContractTransactionResponse>;
+  redeemShares(shares: bigint, to: string): Promise<ContractTransactionResponse>;
   connect(signer: Wallet): VaultLike;
   totalAssets(): Promise<bigint>;
   totalShares(): Promise<bigint>;
@@ -142,6 +151,7 @@ interface StrategyLike {
   balanceOf(): Promise<bigint>;
   totalAssets(): Promise<bigint>;
   mint(amount: bigint): Promise<ContractTransactionResponse>;
+  simulateLoss(amount: bigint): Promise<ContractTransactionResponse>;
   vault(): Promise<string>;
 }
 
@@ -436,7 +446,7 @@ async function main(): Promise<void> {
 
   // ── 8) Strategy Adapter Tests (solo en local con mock_strategy) ──────────────
   if (target.isLocal) {
-    await runStrategyTests(
+    const strategyAddr = await runStrategyTests(
       provider,
       owner,
       usdcAddr!,
@@ -446,6 +456,8 @@ async function main(): Promise<void> {
       assert,
       findEvent,
     );
+    // ── 9) Yield/loss accrual on deposit and redeem (issue #22) ──────────────
+    await runAccrualTests(owner, alice, bob, usdcAddr!, vaultAddr!, strategyAddr, decimals);
   }
 
   // ── Resumen ───────────────────────────────────────────────────────────────
@@ -468,7 +480,7 @@ async function runStrategyTests(
   fmt: (wei: bigint, decimals: number) => string,
   assert: (cond: boolean, msg: string) => asserts cond,
   _findEvent: (iface: Interface, logs: readonly Log[], name: string) => Promise<ethers.LogDescription | undefined>,
-): Promise<void> {
+): Promise<string> {
   console.log("\n============================================================");
   console.log("   Pruebas del Adaptador de Estrategia (mock_strategy)");
   console.log("============================================================\n");
@@ -591,6 +603,137 @@ async function runStrategyTests(
   console.log("  ✔ Vault despausado");
 
   console.log("\n✅ Todas las pruebas de estrategia completadas con éxito");
+  return strategyAddr;
+}
+
+// ─── Accrual helpers (floor-math mirror of treasury_vault/src/logic.rs) ───────
+// The shared vault is not empty, so expected values are computed from the
+// on-chain pre-state instead of hard-coded numbers.
+function mirrorShares(assets: bigint, totalAssets: bigint, totalShares: bigint): bigint {
+  return totalShares === 0n ? assets : (assets * totalShares) / totalAssets;
+}
+
+function mirrorAssets(shares: bigint, totalAssets: bigint, totalShares: bigint): bigint {
+  return totalShares === 0n ? 0n : (shares * totalAssets) / totalShares;
+}
+
+/** Deposits `amount` as `signer`, returning the shares minted and the receipt logs. */
+async function vaultDeposit(
+  vault: VaultLike,
+  usdc: UsdcLike,
+  signer: Wallet,
+  vaultAddr: string,
+  amount: bigint,
+): Promise<{ minted: bigint; logs: readonly Log[] }> {
+  const v = vault.connect(signer);
+  const before = await v.sharesOf(signer.address);
+  await (await usdc.connect(signer).approve(vaultAddr, amount)).wait();
+  const receipt = await (await v.deposit(amount)).wait();
+  assert(receipt !== null, "deposit returned no receipt");
+  return { minted: (await v.sharesOf(signer.address)) - before, logs: receipt.logs };
+}
+
+/** Redeems `shares` as `signer` to itself, returning the USDC received and the logs. */
+async function vaultRedeem(
+  vault: VaultLike,
+  usdc: UsdcLike,
+  signer: Wallet,
+  shares: bigint,
+): Promise<{ received: bigint; logs: readonly Log[] }> {
+  const before = await usdc.balanceOf(signer.address);
+  const receipt = await (await vault.connect(signer).redeemShares(shares, signer.address)).wait();
+  assert(receipt !== null, "redeemShares returned no receipt");
+  return { received: (await usdc.balanceOf(signer.address)) - before, logs: receipt.logs };
+}
+
+async function runAccrualTests(
+  owner: Wallet,
+  alice: Wallet,
+  bob: Wallet,
+  usdcAddr: string,
+  vaultAddr: string,
+  strategyAddr: string,
+  decimals: number,
+): Promise<void> {
+  console.log("\n============================================================");
+  console.log("   Yield/loss accrual on deposit and redeem (issue #22)");
+  console.log("============================================================\n");
+
+  const usdc = new ethers.Contract(usdcAddr, USDC_ABI, owner) as unknown as UsdcLike;
+  const vault = new ethers.Contract(vaultAddr, VAULT_ABI, owner) as unknown as VaultLike;
+  const strategy = new ethers.Contract(strategyAddr, STRATEGY_ABI, owner) as unknown as StrategyLike;
+  const amount = ethers.parseUnits("10", decimals);
+  const bump = ethers.parseUnits("1", decimals);
+
+  // ── 9.1) Fair split: unrealised yield is accrued before pricing the deposit ──
+  console.log("── 9.1) Fair split of unrealised yield ──");
+  await (await usdc.mint(owner.address, bump)).wait();
+  await (await usdc.approve(strategyAddr, bump)).wait();
+  await (await strategy.mint(bump)).wait();
+  let ta = await vault.totalAssets();
+  let ts = await vault.totalShares();
+  const accrued = ta + ((await strategy.balanceOf()) - (await vault.strategyDeployed()));
+  const expectedMint = mirrorShares(amount, accrued, ts);
+  const dep = await vaultDeposit(vault, usdc, alice, vaultAddr, amount);
+  assert(dep.minted === expectedMint, `9.1 minted ${dep.minted}, expected ${expectedMint}`);
+  assert((await vault.totalAssets()) === accrued + amount, "9.1 totalAssets must include accrued yield + deposit");
+  assert((await vault.totalShares()) === ts + expectedMint, "9.1 totalShares must only grow by the minted shares");
+  assert(
+    (await findEvent(vault.interface, dep.logs, "YieldRealized")) !== undefined,
+    "9.1 YieldRealized must be emitted by deposit",
+  );
+  const out = await vaultRedeem(vault, usdc, alice, dep.minted);
+  const expectedOut = mirrorAssets(dep.minted, accrued + amount, ts + expectedMint);
+  assert(out.received === expectedOut, `9.1 redeemed ${out.received}, expected ${expectedOut}`);
+  console.log(`  ✔ minted ${dep.minted}, redeemed ${fmt(out.received, decimals)}`);
+
+  // ── 9.2) Loss is recognised before redeeming ──
+  console.log("\n── 9.2) Strategy loss recognised, redeem does not revert ──");
+  const bobDep = await vaultDeposit(vault, usdc, bob, vaultAddr, amount);
+  ta = await vault.totalAssets();
+  ts = await vault.totalShares();
+  await (await strategy.simulateLoss(bump)).wait();
+  const lossOut = await vaultRedeem(vault, usdc, bob, bobDep.minted);
+  const lossExpected = mirrorAssets(bobDep.minted, ta - bump, ts);
+  assert(lossOut.received === lossExpected, `9.2 redeemed ${lossOut.received}, expected ${lossExpected}`);
+  assert(
+    (await findEvent(vault.interface, lossOut.logs, "YieldLossRecognized")) !== undefined,
+    "9.2 YieldLossRecognized must be emitted by redeem",
+  );
+  console.log(`  ✔ loss ${fmt(bump, decimals)} recognised, redeemed ${fmt(lossOut.received, decimals)}`);
+
+  // ── 9.3) No strategy: accrual is a no-op ──
+  console.log("\n── 9.3) No strategy configured ──");
+  await (await vault.withdrawAllFromStrategy()).wait();
+  await (await vault.setStrategy(ethers.ZeroAddress)).wait();
+  ta = await vault.totalAssets();
+  ts = await vault.totalShares();
+  const noStratDep = await vaultDeposit(vault, usdc, alice, vaultAddr, amount);
+  assert(noStratDep.minted === mirrorShares(amount, ta, ts), "9.3 shares must use the stored price");
+  assert((await vault.totalAssets()) === ta + amount, "9.3 totalAssets moves only by the deposit");
+  await vaultRedeem(vault, usdc, alice, noStratDep.minted);
+  console.log("  ✔ deposit and redeem behave as before the change");
+
+  // ── 9.4) Failed balance read: accrual is skipped ──
+  console.log("\n── 9.4) Failed balance read keeps the previous price ──");
+  await (await vault.setStrategy(bob.address)).wait(); // an EOA returns empty data for balanceOf()
+  ta = await vault.totalAssets();
+  ts = await vault.totalShares();
+  const failedDep = await vaultDeposit(vault, usdc, alice, vaultAddr, amount);
+  assert(failedDep.minted === mirrorShares(amount, ta, ts), "9.4 shares must use the previous price");
+  assert((await vault.totalAssets()) === ta + amount, "9.4 totalAssets moves only by the deposit");
+  assert(
+    (await findEvent(vault.interface, failedDep.logs, "YieldLossRecognized")) === undefined,
+    "9.4 no loss event on a failed read",
+  );
+  await vaultRedeem(vault, usdc, alice, failedDep.minted);
+  console.log("  ✔ failed read did not revert and did not change the price");
+
+  // ── 9.5) Restore the strategy ──
+  console.log("\n── 9.5) Restore strategy ──");
+  await (await vault.setStrategy(strategyAddr)).wait();
+  assert((await vault.strategy()).toLowerCase() === strategyAddr.toLowerCase(), "9.5 strategy not restored");
+  console.log("\n✅ Accrual tests completed successfully");
 }
 
 async function resolveStrategyAddress(
