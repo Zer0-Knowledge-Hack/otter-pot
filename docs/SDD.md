@@ -723,6 +723,7 @@ Reglas v7 y v8 que refuerzan la sección:
 - **Separación de cuentas:** la cuenta operadora del relayer y la cuenta de administración del Sweeper y del vault son distintas; comprometer el bot no entrega el control de la tesorería.
 - **Roster válido:** `createChallenge` impide crear retos que no puedan bloquearse (sección 6.2).
 - **Cancelación por derecho off-chain:** el permiso del usuario final (creador/admin en Telegram) a cancelar se valida en el Worker; el contrato solo exige ser operador. Esto mantiene la superficie on-chain mínima sin abrir autorización arbitraria de movimientos.
+- **Datos de la app en Firebase (DD-11, propuesta):** la app web guarda sesión, perfil, leaderboard y contacto en Firebase, con reglas versionadas (`packages/nextjs/database.rules.json`, `storage.rules`) que niegan todo por defecto y limitan cada usuario a su propio `auth.uid`. Firebase nunca custodia ni mueve fondos: el depósito y los pagos dependen solo del contrato. La propiedad de la wallet todavía no se verifica con firma (riesgos en DD-11).
 
 ## 12. Off-ramp a moneda fiat
 
@@ -788,6 +789,7 @@ Cada cambio está **implementado** (existe en el código) o **pendiente** (espec
 | ABI v8 y cliente de cadena del Worker | DD-02, DD-04 | Worker | Pendiente | #28 |
 | Despliegue único de la v8 | DD-09 | Contratos y consumidores | Pendiente | #24 |
 | Flujo de depósito desde grupos (botón `url` y página de depósito) | DD-10 | Bot y página de depósito | Implementado. Falta la publicación y el soporte de wallet móvil | #31, #32 |
+| Datos off-chain de la app en Firebase (sesión, perfil, leaderboard, contacto) y reglas versionadas | DD-11 (propuesta) | App web (`packages/nextjs`) | Implementado sin verificación de firma de la wallet; reglas desplegadas y versionadas. Pendiente: SIWE, lectura restringida de participantes, proyecto de demo separado | AS-17 (PR #46) |
 
 **Afectaciones transversales de la v8:**
 

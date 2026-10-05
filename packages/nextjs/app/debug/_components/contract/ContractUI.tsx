@@ -1,8 +1,7 @@
 "use client";
 
 // @refresh reset
-import { useReducer, useState, useMemo } from "react";
-import { useTheme } from "next-themes";
+import { useReducer, useState } from "react";
 import { ContractReadMethods } from "./ContractReadMethods";
 import { ContractVariables } from "./ContractVariables";
 import { ContractWriteMethods } from "./ContractWriteMethods";
@@ -10,6 +9,7 @@ import { Address, Balance } from "~~/components/scaffold-eth";
 import { useDeployedContractInfo } from "~~/hooks/scaffold-eth";
 import { useTargetNetwork } from "~~/hooks/scaffold-eth/useTargetNetwork";
 import { ContractName } from "~~/utils/scaffold-eth/contract";
+import { useIsDarkMode } from "~~/hooks/useIsDarkMode";
 
 type ContractUIProps = {
   contractName: ContractName;
@@ -23,8 +23,7 @@ export const ContractUI = ({ contractName, className = "" }: ContractUIProps) =>
   const [activeTab, setActiveTab] = useState("write");
   const [refreshDisplayVariables, triggerRefreshDisplayVariables] = useReducer(value => !value, false);
   const { targetNetwork } = useTargetNetwork();
-  const { resolvedTheme } = useTheme();
-  const isDarkMode = useMemo(() => resolvedTheme === "dark", [resolvedTheme]);
+  const isDarkMode = useIsDarkMode();
   const { data: deployedContractData, isLoading: deployedContractLoading } = useDeployedContractInfo({ contractName });
 
   const tabs = [

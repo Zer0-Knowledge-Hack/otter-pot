@@ -1,7 +1,6 @@
 "use client";
 
-import { useEffect, useMemo } from "react";
-import { useTheme } from "next-themes";
+import { useEffect } from "react";
 import { InheritanceTooltip } from "./InheritanceTooltip";
 import { displayTxResult } from "./utilsDisplay";
 import { Abi, AbiFunction } from "abitype";
@@ -11,6 +10,7 @@ import { ArrowPathIcon } from "@heroicons/react/24/outline";
 import { useAnimationConfig } from "~~/hooks/scaffold-eth";
 import { useTargetNetwork } from "~~/hooks/scaffold-eth/useTargetNetwork";
 import { getParsedError, notification } from "~~/utils/scaffold-eth";
+import { useIsDarkMode } from "~~/hooks/useIsDarkMode";
 
 type DisplayVariableProps = {
   contractAddress: Address;
@@ -28,8 +28,7 @@ export const DisplayVariable = ({
   inheritedFrom,
 }: DisplayVariableProps) => {
   const { targetNetwork } = useTargetNetwork();
-  const { resolvedTheme } = useTheme();
-  const isDarkMode = useMemo(() => resolvedTheme === "dark", [resolvedTheme]);
+  const isDarkMode = useIsDarkMode();
 
   const {
     data: result,

@@ -1,49 +1,43 @@
 "use client";
 
-import React, { useCallback, useRef, useState, useMemo } from "react";
+import React, { useCallback, useRef, useState } from "react";
 import Image from "next/image";
 import Link from "next/link";
 import { usePathname } from "next/navigation";
-import { useTheme } from "next-themes";
 import { SwitchTheme } from "./SwitchTheme";
 import { Bars3Icon } from "@heroicons/react/24/outline";
 import { RainbowKitCustomConnectButton } from "~~/components/scaffold-eth";
+import { LanguageSwitcher } from "~~/components/ui/LanguageSwitcher";
 import { useOutsideClick, useTargetNetwork } from "~~/hooks/scaffold-eth";
+import { useIsDarkMode } from "~~/hooks/useIsDarkMode";
+import { type TranslationKey, useTranslation } from "~~/lib/i18n";
 import { arbitrumNitro } from "~~/utils/scaffold-stylus/supportedChains";
 
 type HeaderMenuLink = {
-  label: string;
+  labelKey: TranslationKey;
   href: string;
   icon?: React.ReactNode;
 };
 
 export const menuLinks: HeaderMenuLink[] = [
   {
-    label: "Inicio",
+    labelKey: "siteChrome.home",
     href: "/",
   },
   {
-    label: "App",
-    href: "/app",
-  },
-  {
-    label: "Login",
-    href: "/login",
-  },
-  {
-    label: "Debug Contracts",
+    labelKey: "siteChrome.debugContracts",
     href: "/debug",
   },
 ];
 
 export const HeaderMenuLinks = () => {
   const pathname = usePathname();
-  const { resolvedTheme } = useTheme();
-  const isDarkMode = useMemo(() => resolvedTheme === "dark", [resolvedTheme]);
+  const isDarkMode = useIsDarkMode();
+  const { t } = useTranslation();
 
   return (
     <>
-      {menuLinks.map(({ label, href, icon }) => {
+      {menuLinks.map(({ labelKey, href, icon }) => {
         const isActive = pathname === href;
 
         return (
@@ -74,7 +68,7 @@ export const HeaderMenuLinks = () => {
               }}
             >
               {icon}
-              <span>{label}</span>
+              <span>{t(labelKey)}</span>
             </Link>
           </li>
         );
@@ -90,8 +84,7 @@ export const Header = () => {
   const [isDrawerOpen, setIsDrawerOpen] = useState(false);
   const burgerMenuRef = useRef<HTMLDivElement>(null);
   const { targetNetwork } = useTargetNetwork();
-  const { resolvedTheme } = useTheme();
-  const isDarkMode = useMemo(() => resolvedTheme === "dark", [resolvedTheme]);
+  const isDarkMode = useIsDarkMode();
   const isLocalNetwork = targetNetwork?.id === arbitrumNitro.id;
   useOutsideClick(
     burgerMenuRef,
@@ -135,7 +128,7 @@ export const Header = () => {
         </div>
         <Link href="/" passHref className="hidden lg:flex items-center gap-2 ml-4 mr-6 shrink-0">
           <div className="flex relative w-12 h-12">
-            <Image alt="Scaffold Stylus logo" className="cursor-pointer" fill src="/logo.svg" />
+            <Image alt="Scaffold Stylus logo" className="cursor-pointer" fill loading="eager" src="/logo.svg" />
           </div>
           <div className="flex flex-col">
             <span
@@ -160,7 +153,7 @@ export const Header = () => {
                 lineHeight: "20px",
               }}
             >
-              Arbitrum · ETH Lima 2026
+              Arbitrum · Stylus
             </span>
           </div>
         </Link>
@@ -176,6 +169,7 @@ export const Header = () => {
             backgroundColor: isDarkMode ? "white" : "black",
           }}
         ></div>
+        <LanguageSwitcher className="pointer-events-auto" />
         <SwitchTheme className={`pointer-events-auto ${isLocalNetwork ? "self-end md:self-auto" : ""}`} />
       </div>
     </div>

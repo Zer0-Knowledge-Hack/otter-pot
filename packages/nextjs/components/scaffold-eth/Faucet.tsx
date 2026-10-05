@@ -1,16 +1,16 @@
 "use client";
 
-import { useEffect, useState, useMemo } from "react";
+import { useEffect, useState } from "react";
 import { Address as AddressType, createWalletClient, http, parseEther } from "viem";
 import { privateKeyToAccount } from "viem/accounts";
 import { useAccount } from "wagmi";
-import { useTheme } from "next-themes";
 import { BanknotesIcon } from "@heroicons/react/24/outline";
 import { AngularBorder } from "~~/components/AngularBorder";
 import { Address, AddressInput, Balance, EtherInput } from "~~/components/scaffold-eth";
 import { useTransactor } from "~~/hooks/scaffold-eth";
 import { notification } from "~~/utils/scaffold-eth";
 import { arbitrumNitro } from "~~/utils/scaffold-stylus/supportedChains";
+import { useIsDarkMode } from "~~/hooks/useIsDarkMode";
 
 // Account index to use from generated arbitrum accounts.
 const FAUCET_ACCOUNT_INDEX = 0;
@@ -31,11 +31,7 @@ export const Faucet = () => {
   const [sendValue, setSendValue] = useState("");
 
   const { chain: ConnectedChain } = useAccount();
-  const { resolvedTheme } = useTheme();
-
-  const isDarkMode = useMemo(() => {
-    return resolvedTheme === "dark";
-  }, [resolvedTheme]);
+  const isDarkMode = useIsDarkMode();
 
   const faucetTxn = useTransactor(localWalletClient);
 

@@ -1,7 +1,7 @@
 import { useCallback, useEffect, useState } from "react";
 import { parseEther } from "viem";
-import { useTheme } from "next-themes";
 import { CommonInputProps, InputBase, IntegerVariant, isValidInteger } from "~~/components/scaffold-eth";
+import { useIsDarkMode } from "~~/hooks/useIsDarkMode";
 
 type IntegerInputProps = CommonInputProps<string> & {
   variant?: IntegerVariant;
@@ -17,8 +17,7 @@ export const IntegerInput = ({
   variant = IntegerVariant.UINT256,
   disableMultiplyBy1e18 = false,
 }: IntegerInputProps) => {
-  const { resolvedTheme } = useTheme();
-  const isDarkMode = resolvedTheme === "dark";
+  const isDarkMode = useIsDarkMode();
   const [inputError, setInputError] = useState(false);
   const multiplyBy1e18 = useCallback(() => {
     if (!value) {

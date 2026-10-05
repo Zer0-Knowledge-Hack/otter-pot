@@ -1,12 +1,19 @@
 import { GenericContractsDeclaration } from "~~/utils/scaffold-eth/contract";
-import { challengePoolAbi, CHALLENGE_POOL_ADDRESS, USDC_ADDRESS } from "~~/contracts/challengePoolAbi";
+import { challengePoolAbi } from "~~/contracts/challengePoolAbi";
+import { getNetworkContracts } from "~~/contracts/config";
 
 /**
  * External contracts for OtterPot on Arbitrum One (42161).
  * Set NEXT_PUBLIC_CHALLENGE_POOL_ADDRESS after deploy.
+ *
+ * Las addresses salen de `config.ts` fijadas a Arbitrum One, no de la red activa:
+ * esta declaración es solo para 42161.
  */
-const poolAddress = (CHALLENGE_POOL_ADDRESS ||
+const arbitrumOne = getNetworkContracts("arbitrum");
+
+const poolAddress = (arbitrumOne.challengePool ||
   "0x0000000000000000000000000000000000000000") as `0x${string}`;
+const USDC_ADDRESS = arbitrumOne.usdc as `0x${string}`;
 
 const externalContracts = {
   42161: {

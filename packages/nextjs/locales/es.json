@@ -1,0 +1,569 @@
+{
+  "languageSwitcher": {
+    "label": "Idioma",
+    "es": "Ver en español",
+    "en": "Ver en inglés"
+  },
+  "nav": {
+    "product": "El problema",
+    "howItWorks": "Cómo funciona",
+    "community": "Comunidad",
+    "manual": "Manual",
+    "demo": "Demo",
+    "faq": "Preguntas",
+    "contact": "Contacto",
+    "signIn": "Entrar",
+    "getStarted": "Crear mi reto",
+    "openMenu": "Abrir menú",
+    "closeMenu": "Cerrar menú",
+    "telegramGroup": "Grupo de Telegram",
+    "feedback": "Reseñas",
+    "team": "Equipo",
+    "tryBot": "Probar bot",
+    "botGuide": "Usar el bot"
+  },
+  "hero": {
+    "eyebrow": "Retos entre amigos · Pozo asegurado en Arbitrum",
+    "title": "Retá a tus amigos. El pozo ya está cobrado.",
+    "subtitle": "El pozo existe antes de que haya un ganador. Cada uno pone su parte al unirse, en un contrato en Arbitrum escrito en Rust con Stylus, y la plata solo puede ir al ganador o volver a quien la puso.",
+    "ctaPrimary": "Crear mi reto",
+    "ctaSecondary": "Ver cómo funciona",
+    "install": "Instalá OtterPot",
+    "group": "Grupo",
+    "miniApp": "Mini App",
+    "manual": "Manual",
+    "mascotAlt": "Mascota de OtterPot"
+  },
+  "builtOn": "Construido sobre",
+  "product": {
+    "title": "Ganás un pozo de $50 y cobrás $30",
+    "subtitle": "Pasa en cualquier pozo entre amigos: dos de cinco \"te pagan después\". Hoy el pozo es una promesa en el chat y cobrarle a un amigo es incómodo. OtterPot lo cobra por adelantado.",
+    "pillars": {
+      "create": {
+        "title": "Armá el reto en el grupo",
+        "body": "Definí la meta, el monto y el plazo. Cada uno se anota con un botón."
+      },
+      "fund": {
+        "title": "Todos ponen antes de empezar",
+        "body": "Nadie juega sin depositar. El pozo está completo desde el primer día."
+      },
+      "win": {
+        "title": "El ganador cobra solo",
+        "body": "Cuando la mayoría confirma quién ganó, el contrato le paga. Sin perseguir a nadie."
+      }
+    }
+  },
+  "how": {
+    "title": "Cómo funciona",
+    "subtitle": "Del chat del grupo al pago, en cinco pasos.",
+    "steps": {
+      "create": {
+        "title": "Creá el reto",
+        "body": "Elegí la meta, el monto y el plazo desde Telegram."
+      },
+      "invite": {
+        "title": "Invitá a tu grupo",
+        "body": "Compartilo en el chat con un toque."
+      },
+      "deposit": {
+        "title": "Cada uno deposita",
+        "body": "El reto arranca recién cuando todos pusieron su parte."
+      },
+      "complete": {
+        "title": "El grupo confirma",
+        "body": "La mayoría vota quién cumplió la meta."
+      },
+      "claim": {
+        "title": "El ganador cobra",
+        "body": "El contrato le paga. Si vence el plazo sin acuerdo, cada uno recupera lo suyo."
+      }
+    },
+    "manuals": "Ver los manuales",
+    "faucets": "Conseguir fondos de prueba"
+  },
+  "demo": {
+    "eyebrow": "Presentación",
+    "title": "OtterPot en dos minutos",
+    "subtitle": "Un pozo real, de la creación al pago, en video y en documento.",
+    "videoTitle": "Presentación de OtterPot",
+    "youtube": {
+      "title": "Ver en YouTube",
+      "body": "Video de presentación"
+    },
+    "pdf": {
+      "title": "Documento del proyecto",
+      "body": "PDF listo para compartir"
+    },
+    "simpleManual": {
+      "title": "Manual sencillo",
+      "body": "Pensado para jurados y primeras visitas"
+    },
+    "faucets": {
+      "title": "Fondos de prueba",
+      "body": "USDC y ETH de prueba para probar el flujo"
+    },
+    "manualVideo": {
+      "title": "Video manual",
+      "body": "Cómo crear un reto y pagar, paso a paso"
+    }
+  },
+  "community": {
+    "eyebrow": "Comunidad en Telegram",
+    "title": "El reto se arma donde ya está tu grupo",
+    "subtitle": "Sin apps nuevas ni registros: sumate al grupo oficial o escribile al bot {bot}.",
+    "imageAlt": "Amigos armando un reto en Telegram",
+    "joinGroup": "Unirme al grupo"
+  },
+  "why": {
+    "title": "Por qué en Arbitrum",
+    "items": {
+      "secure": {
+        "title": "Contrato en Rust con Stylus",
+        "body": "Stylus nos deja escribir el contrato en Rust: la reentrada, el ataque clásico para vaciar un pozo, viene bloqueada por defecto, y la lógica gasta menos gas que en Solidity."
+      },
+      "transparent": {
+        "title": "Nadie guarda la plata",
+        "body": "Si el pozo lo guardáramos nosotros, tendrías que confiar en nosotros. En el contrato, cualquiera puede verificarlo."
+      },
+      "fast": {
+        "title": "Barato y rápido",
+        "body": "En Arbitrum, depositar cuesta una fracción de lo que costaría en Ethereum y se confirma en segundos."
+      },
+      "community": {
+        "title": "Reglas que no cambian",
+        "body": "Lo que acordó el grupo al crear el reto es lo que se cumple al final."
+      },
+      "easy": {
+        "title": "Todo desde Telegram",
+        "body": "Crear, depositar y confirmar sin salir del chat, desde el celular."
+      },
+      "rewards": {
+        "title": "Hay algo en juego",
+        "body": "Con la plata ya puesta, cumplir la meta deja de ser una promesa."
+      }
+    }
+  },
+  "useCases": {
+    "title": "Hoy, entre amigos. Mañana, para cualquier comunidad",
+    "items": {
+      "fitness": {
+        "title": "Fitness",
+        "body": "El reto del gimnasio, con premio de verdad."
+      },
+      "learning": {
+        "title": "Aprendizaje",
+        "body": "Cursos, idiomas y metas de estudio."
+      },
+      "gaming": {
+        "title": "Gaming",
+        "body": "Torneos entre amigos con pozo asegurado."
+      },
+      "saving": {
+        "title": "Ahorro",
+        "body": "Metas de ahorro con compromiso grupal."
+      },
+      "teams": {
+        "title": "Equipos",
+        "body": "Objetivos y sprints de trabajo."
+      },
+      "universities": {
+        "title": "Universidades",
+        "body": "Competencias académicas y clubes."
+      },
+      "companies": {
+        "title": "Empresas",
+        "body": "Incentivos internos con reglas claras."
+      },
+      "hackathons": {
+        "title": "Hackathons",
+        "body": "Premios que existen desde el día uno."
+      }
+    }
+  },
+  "gallery": {
+    "title": "La app, de un vistazo",
+    "items": {
+      "dashboard": {
+        "title": "Panel",
+        "body": "Tus pozos activos y tu saldo en un solo lugar."
+      },
+      "create": {
+        "title": "Crear reto",
+        "body": "Un asistente simple, en pocos pasos."
+      },
+      "wallet": {
+        "title": "Billetera",
+        "body": "Conectá tu billetera y depositá en un toque."
+      },
+      "ranking": {
+        "title": "Ranking",
+        "body": "Quién cumple más retos en tu comunidad."
+      },
+      "profile": {
+        "title": "Perfil",
+        "body": "Nivel, puntos y preferencias."
+      },
+      "mobile": {
+        "title": "Pensada para el celular",
+        "body": "Se usa con una mano, desde Telegram."
+      }
+    }
+  },
+  "faq": {
+    "title": "Preguntas frecuentes",
+    "items": {
+      "blockchain": {
+        "q": "¿Necesito saber de blockchain?",
+        "a": "No. Creás el reto y depositás desde Telegram; la parte técnica corre por detrás."
+      },
+      "funds": {
+        "q": "¿Quién tiene la plata mientras dura el reto?",
+        "a": "Nadie: lo controla el contrato. Solo puede pagarle a un participante del reto o devolverle a cada uno lo que puso. Ni el bot ni el equipo pueden mandarla a otro lado."
+      },
+      "telegram": {
+        "q": "¿Puedo usarlo solo desde Telegram?",
+        "a": "Sí. Creás retos, invitás y seguís el avance desde el bot y la Mini App."
+      },
+      "noContract": {
+        "q": "¿Qué pasa si el grupo no se pone de acuerdo?",
+        "a": "Si vence el plazo sin un ganador confirmado, el contrato le devuelve a cada uno su depósito, sin comisión."
+      },
+      "cost": {
+        "q": "¿Cuánto cuesta?",
+        "a": "Crear la cuenta es gratis. Cuando un reto se resuelve, se descuenta una comisión del pozo; los reembolsos no pagan comisión."
+      }
+    }
+  },
+  "contact": {
+    "title": "Contacto",
+    "subtitle": "¿Querés probar OtterPot con tu grupo o tu comunidad? Escribinos.",
+    "location": "Bolivia · LATAM",
+    "telegramGroup": "Grupo de Telegram",
+    "notConfigured": "El formulario no está disponible en este momento. Escribinos por Telegram.",
+    "name": "Nombre",
+    "email": "Correo",
+    "message": "Mensaje",
+    "send": "Enviar mensaje",
+    "sending": "Enviando…",
+    "success": "¡Gracias! Recibimos tu mensaje y te respondemos pronto.",
+    "error": "No pudimos enviar el mensaje. Probá de nuevo."
+  },
+  "finalCta": {
+    "mascotAlt": "OtterPot",
+    "title": "Tu próximo reto, con el pozo cobrado desde el día uno",
+    "subtitle": "Armá el reto, invitá a tu grupo y dejá que el contrato se ocupe del pozo.",
+    "primary": "Crear mi reto",
+    "group": "Unirme al grupo"
+  },
+  "mobileBar": {
+    "group": "Grupo",
+    "start": "Crear reto"
+  },
+  "footer": {
+    "tagline": "El pozo existe antes de que haya un ganador. Retos entre amigos con la plata asegurada desde el primer día.",
+    "productHeading": "Producto",
+    "whatIs": "El problema",
+    "howItWorks": "Cómo funciona",
+    "manual": "Manual de uso",
+    "demo": "Video y PDF",
+    "start": "Crear mi reto",
+    "communityHeading": "Comunidad",
+    "telegramGroup": "Grupo de Telegram",
+    "rights": "© {year} OtterPot. Todos los derechos reservados.",
+    "disclaimer": "Prototipo en testnet (Arbitrum Sepolia): usa USDC de prueba, sin valor real. Mientras dura el reto, el pozo puede depositarse en Aave para generar rendimiento; eso suma el riesgo de ese protocolo. Próximo paso: aceptar USDG de Paxos."
+  },
+  "liveStrip": {
+    "title": "Actividad en vivo",
+    "unavailable": "Datos en vivo no disponibles",
+    "challenges": "Retos",
+    "active": "Activos",
+    "sync": "Estado",
+    "ok": "En línea",
+    "off": "Sin conexión",
+    "onChain": "en el contrato",
+    "offChain": "aún no está en el contrato"
+  },
+  "feedback": {
+    "eyebrow": "Reseñas",
+    "title": "Lo que dicen los jurados",
+    "subtitle": "Reseñas de los representantes de ETH Lima que evaluaron OtterPot, y qué hicimos con cada punto.",
+    "tagClarity": "Claridad",
+    "tagUtility": "Utilidad",
+    "responseLabel": "Respuesta del equipo",
+    "items": {
+      "antonella": {
+        "date": "11 ago 2026",
+        "quote": "Me gustó que podés crear una rutina, guardarla, hacer track de estas, recibir recompensas, conectar tu wallet y hacer diferentes actividades dentro de los retos de la app.",
+        "response": "El seguimiento hoy se valida por evidencia y voto del grupo. En el roadmap está validar la actividad automáticamente con Google Fit / Health Connect."
+      },
+      "gianella": {
+        "date": "8 ago 2026",
+        "quote": "La propuesta de OtterPot destaca por resolver una fricción muy real de los grupos: la necesidad de confiar el dinero a una sola persona. Integrar smart contracts directamente en Telegram hace que la experiencia sea accesible y natural, mientras que el consenso configurable y el reembolso automático reducen significativamente los riesgos. Además, conectar estos retos sociales con DeFi le da un potencial interesante para atraer nuevos usuarios al ecosistema Web3.",
+        "response": "Sobre DeFi: mientras el pozo está bloqueado puede generar rendimiento, y ese rendimiento se usa primero para cubrir la comisión. Si sobra, es un bono para el ganador."
+      },
+      "alejandra": {
+        "date": "8 ago 2026",
+        "quote": "La propuesta está bien enfocada y el uso de blockchain está claramente justificado: la custodia del pozo, las reglas de resolución y los reembolsos realmente se benefician de ejecutarse sin un intermediario. Como mejora, revisaría el mecanismo de consenso para evitar colusión o manipulación entre participantes y explicaría mejor qué ocurre ante resultados ambiguos. También sería importante comunicar claramente el riesgo de colocar temporalmente los fondos en Aave, ya que deja de ser una custodia completamente pasiva. Finalmente, el argumento de Stylus es interesante, pero debería demostrarse con métricas reales de gas frente a una implementación equivalente en Solidity. Eso haría mucho más sólida la justificación técnica del uso de Arbitrum.",
+        "response": "Ante un resultado ambiguo, si vence el plazo sin mayoría, el contrato reembolsa a todos sin comisión. Contra la colusión, el modo juez designado está en el roadmap. El riesgo de Aave ahora está explicado en el pie de página, y estamos midiendo el gas de Stylus frente a Solidity."
+      }
+    },
+    "role": "Representante de ETH Lima",
+    "readMore": "Leer más",
+    "readLess": "Ver menos",
+    "prev": "Reseña anterior",
+    "next": "Reseña siguiente",
+    "goTo": "Ir a la reseña {n}",
+    "region": "Reseñas del jurado"
+  },
+  "team": {
+    "title": "Quiénes lo estamos construyendo",
+    "roles": {
+      "blockchain": "Desarrollo blockchain",
+      "frontend": "Desarrollo frontend",
+      "backend": "Desarrollo backend",
+      "business": "Desarrollo de negocio"
+    }
+  },
+  "art": {
+    "hero": {
+      "aria": "Un reto de OtterPot en el teléfono: pozo de 250 USDC bloqueado en el contrato y 5 de 5 amigos que ya depositaron",
+      "challenge": "Reto del grupo",
+      "goal": "Correr 50 km en 30 días",
+      "pot": "250 USDC",
+      "locked": "Pozo bloqueado",
+      "deposited": "5/5 depositaron",
+      "vote": "Votar ganador",
+      "chipTelegram": "Desde Telegram",
+      "chipContract": "En Arbitrum",
+      "chipFriends": "5 amigos"
+    },
+    "friends": {
+      "aria": "Cuatro amigos depositan 50 USDC cada uno en un pozo bloqueado en el contrato; el pozo va al ganador o vuelve a todos",
+      "deposit": "+50",
+      "pot": "200 USDC",
+      "potCaption": "Pozo en el contrato",
+      "winner": "Ganador",
+      "refund": "Sin acuerdo: vuelve a todos"
+    },
+    "botChat": {
+      "aria": "Chat de Telegram con el bot de OtterPot: se crea un reto con /nuevo, los amigos se suman, el pozo queda bloqueado y el ganador cobra",
+      "group": "Retos del gym",
+      "members": "4 miembros",
+      "bot": "OtterPot",
+      "cmdNew": "/nuevo 25 24",
+      "setup": "Reto armado · 25 USDC · 24 h",
+      "join": "Me sumo",
+      "joined": "Ana, Beto y Caro se sumaron",
+      "locked": "Pozo: 100 USDC · 4/4 depositaron",
+      "cmdConfirm": "/confirmar @ana",
+      "paid": "Ana ganó 100 USDC"
+    }
+  },
+  "botGuide": {
+    "eyebrow": "Tutorial",
+    "title": "Cómo usar el bot",
+    "subtitle": "Todo pasa en el chat de tu grupo. Tarda menos de lo que lleva leer esto.",
+    "openBot": "Abrir {bot}",
+    "note": "Hoy los depósitos son en USDC de prueba (Arbitrum Sepolia).",
+    "steps": {
+      "find": {
+        "title": "Sumá el bot a tu grupo",
+        "body": "Abrí Telegram, buscá {bot} y agregalo al grupo donde van a jugar."
+      },
+      "create": {
+        "title": "Escribí /nuevo",
+        "body": "Indicá monto y plazo. Por ejemplo, /nuevo 25 24 arma un reto de 25 USDC por 24 horas."
+      },
+      "join": {
+        "title": "Cada uno se anota",
+        "body": "Los participantes tocan \"Me sumo\". Cuando están todos, /abrir crea el reto en el contrato."
+      },
+      "deposit": {
+        "title": "Cada uno deposita",
+        "body": "Con /depositar se abre la Mini App y cada uno firma su parte desde su billetera."
+      },
+      "confirm": {
+        "title": "El grupo confirma",
+        "body": "Al terminar, cada uno vota al ganador con /confirmar @usuario."
+      },
+      "payout": {
+        "title": "El contrato paga",
+        "body": "Con mayoría, el pozo va al ganador. Si vence el plazo sin acuerdo, /reembolso le devuelve a cada uno lo suyo."
+      }
+    },
+    "watchVideo": "Ver el video manual"
+  },
+  "installPwa": {
+    "title": "Instalá OtterPot",
+    "ios": "En iPhone: tocá Compartir y después “Agregar a pantalla de inicio”.",
+    "prompt": "Llevá la app a tu pantalla de inicio. Rápida y sin pasar por la tienda.",
+    "manual": "Agregá OtterPot a tu pantalla de inicio desde el menú del navegador.",
+    "iosShort": "Compartir → Agregar",
+    "install": "Instalar app",
+    "installing": "Instalando…",
+    "dismiss": "Entendido",
+    "close": "Cerrar"
+  },
+  "appShell": {
+    "groups": {
+      "main": "Principal",
+      "social": "Comunidad",
+      "account": "Cuenta"
+    },
+    "nav": {
+      "home": "Inicio",
+      "wallet": "Billetera",
+      "myChallenges": "Mis retos",
+      "discover": "Descubrir",
+      "explore": "Explorar",
+      "ranking": "Ranking",
+      "community": "Comunidad",
+      "calendar": "Calendario",
+      "rewards": "Recompensas",
+      "activity": "Actividad",
+      "invites": "Invitaciones",
+      "profile": "Perfil",
+      "settings": "Ajustes",
+      "contracts": "Contratos"
+    },
+    "create": "Crear reto",
+    "createShort": "Crear",
+    "backHome": "Volver al inicio",
+    "openMenu": "Abrir menú",
+    "closeMenu": "Cerrar menú",
+    "notifications": "Notificaciones",
+    "logout": "Salir",
+    "loggingOut": "Saliendo…"
+  },
+  "account": {
+    "title": "Tu acceso",
+    "google": "Google",
+    "wallet": "Billetera",
+    "linked": "Conectada",
+    "notLinked": "Sin vincular",
+    "linkGoogle": "Vincular Google",
+    "connectWallet": "Conectar",
+    "both": "Acceso completo: cuenta guardada y pagos.",
+    "hint": "Con uno alcanza para entrar. Con los dos, tus retos quedan en tu cuenta y pagás desde tu billetera.",
+    "guest": "Estás como invitado. Vinculá Google o tu billetera para crear y pagar retos."
+  },
+  "walletPage": {
+    "title": "Billetera",
+    "morning": "Buenos días",
+    "afternoon": "Buenas tardes",
+    "evening": "Buenas noches",
+    "balanceLabel": "Saldo disponible",
+    "testnet": "Testnet · sin valor real",
+    "actions": {
+      "receive": "Recibir",
+      "pay": "Pagar reto",
+      "create": "Crear reto",
+      "faucet": "Fondos de prueba"
+    },
+    "receiveTitle": "Recibir fondos",
+    "receiveBody": "Escaneá el QR o copiá la dirección. Enviá solo USDC o ETH de la red {network}.",
+    "copyAddress": "Copiar dirección",
+    "copied": "¡Copiada!",
+    "close": "Cerrar",
+    "assets": "Mis activos",
+    "usdcName": "USD Coin",
+    "usdcHint": "Para depositar en retos",
+    "ethName": "Ether",
+    "ethHint": "Para pagar el gas de cada firma",
+    "allowanceName": "Permiso para retos",
+    "allowanceHint": "USDC que autorizaste al contrato a usar",
+    "connectTitle": "Conectá tu billetera",
+    "connectBody": "Con tu billetera ves tu saldo, recibís fondos y pagás retos. Nunca compartas tu frase secreta.",
+    "wrongNetwork": "Red incorrecta",
+    "wrongNetworkBody": "OtterPot funciona en {network}. Cambiá de red para que tus pagos funcionen.",
+    "switchNetwork": "Cambiar a {network}",
+    "notifyTitle": "Avisos al celular",
+    "notifyBody": "Te avisamos de depósitos y actividad de tus retos.",
+    "notifyOn": "Activados",
+    "notifyEnable": "Activar",
+    "notifyUnsupported": "Este navegador no soporta notificaciones. Probá con Chrome o Edge en Android.",
+    "notifyOff": "Avisos desactivados.",
+    "notifyDenied": "Permiso denegado. Activalo en los ajustes del navegador.",
+    "notifyDone": "Notificaciones activadas en este dispositivo.",
+    "notifyTestTitle": "OtterPot listo",
+    "notifyTestBody": "Te vamos a avisar de depósitos y actividad de tus retos.",
+    "technical": "Detalles técnicos",
+    "importToken": "Importar USDC en MetaMask",
+    "decimals": "Decimales",
+    "copyToken": "Copiar dirección USDC",
+    "contracts": "Contratos",
+    "explorer": "Ver en Arbiscan",
+    "loading": "Activando billetera…",
+    "loadingBody": "En segundos vas a ver tu saldo."
+  },
+  "login": {
+    "title": "Entrá a OtterPot",
+    "subtitle": "Elegí cómo entrar. Con uno alcanza; con los dos aprovechás todo.",
+    "googleTitle": "Continuar con Google",
+    "googleBody": "Guarda tus retos y tu perfil en tu cuenta.",
+    "walletTitle": "Conectar billetera",
+    "walletBody": "Para pagar y cobrar retos con tu USDC.",
+    "or": "o",
+    "connecting": "Conectando…",
+    "redirecting": "Redirigiendo a Google… volvé a esta pestaña cuando termines.",
+    "noWallet": "No detectamos una extensión de billetera. Instalá MetaMask o usá WalletConnect.",
+    "lan": "Estás en {host}. Usá MetaMask o WalletConnect.",
+    "network": "Red",
+    "walletConnected": "Billetera conectada · entrando…",
+    "walletWrongNetwork": "Red incorrecta: cambiala al conectar.",
+    "guest": "Explorar sin cuenta",
+    "guestHint": "Modo invitado: podés mirar, pero para crear o pagar necesitás Google o tu billetera.",
+    "firebaseOff": "El acceso con Google no está disponible en este momento.",
+    "sideTitle": "Tu pozo, seguro y a mano",
+    "sidePoints": {
+      "custody": "El dinero queda en un contrato en Arbitrum, no en manos de nadie.",
+      "receive": "Recibí fondos con tu QR y pagá retos en dos toques.",
+      "access": "Entrá con Google, con tu billetera o con los dos."
+    },
+    "noWalletMobile": "En el teléfono, abrí OtterPot dentro de la app de MetaMask o conectá con WalletConnect.",
+    "openInMetaMask": "Abrir en MetaMask"
+  },
+  "siteChrome": {
+    "home": "Inicio",
+    "debugContracts": "Contratos (debug)",
+    "blockExplorer": "Explorador de bloques",
+    "forkMe": "Ver código",
+    "support": "Soporte"
+  },
+  "notFound": {
+    "title": "Página no encontrada",
+    "body": "La página que buscás no existe.",
+    "home": "Volver al inicio"
+  },
+  "depositPage": {
+    "title": "Depositar en el reto",
+    "missingConfig": "Falta configurar las direcciones de los contratos. Avisale a quien administra el bot.",
+    "challenge": "Reto",
+    "yourDeposit": "Tu depósito",
+    "status": "Estado",
+    "statuses": {
+      "open": "Abierto",
+      "locked": "Bloqueado",
+      "resolved": "Resuelto",
+      "refunded": "Reembolsado",
+      "unknown": "Desconocido",
+      "unreadable": "No se pudo leer"
+    },
+    "closed": "Este reto ya no acepta depósitos: está {status}.",
+    "confirmed": "✅ Depósito confirmado",
+    "viewOnArbiscan": "Ver en Arbiscan",
+    "backToGroup": "Ya podés volver al grupo de Telegram.",
+    "connect": "Conectar wallet",
+    "connecting": "Conectando…",
+    "connected": "Conectado:",
+    "approving": "Aprobando USDC…",
+    "depositing": "Depositando…",
+    "deposit": "Depositar {amount} USDC",
+    "twoSignatures": "Son dos firmas: primero autorizás al contrato a mover tu USDC, después depositás.",
+    "errors": {
+      "noWallet": "No encontré una wallet en este navegador. Instalá MetaMask y volvé a entrar.",
+      "noAccount": "No autorizaste ninguna cuenta.",
+      "insufficient": "No te alcanza el USDC: necesitás {amount} y tenés menos."
+    }
+  }
+}

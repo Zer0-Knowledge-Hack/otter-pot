@@ -16,6 +16,8 @@ import { useCallback, useEffect, useMemo, useState } from "react";
 import { createPublicClient, createWalletClient, custom, http, parseAbi } from "viem";
 import type { Address, EIP1193Provider } from "viem";
 import { arbitrumSepolia } from "viem/chains";
+import { LanguageSwitcher } from "~~/components/ui/LanguageSwitcher";
+import { useTranslation } from "~~/lib/i18n";
 
 const POOL_ABI = parseAbi([
   "function deposit(uint256 challengeId)",
@@ -33,15 +35,20 @@ const POOL = process.env["NEXT_PUBLIC_CHALLENGE_POOL_ADDRESS"] as Address | unde
 const USDC = process.env["NEXT_PUBLIC_USDC_ADDRESS"] as Address | undefined;
 const RPC = process.env["NEXT_PUBLIC_CHAIN_RPC_URL"] ?? "https://sepolia-rollup.arbitrum.io/rpc";
 
-const ESTADOS = ["Abierto", "Bloqueado", "Resuelto", "Reembolsado"] as const;
+// Índice = valor de `challengeStatus` en el contrato (SDD §6.3).
+const ESTADOS = ["open", "locked", "resolved", "refunded"] as const;
+type EstadoReto = (typeof ESTADOS)[number] | "unknown" | "unreadable";
+/** Estados en los que el contrato ya no acepta depósitos. */
+const CERRADOS: EstadoReto[] = ["locked", "resolved", "refunded"];
 
 type Paso = "conectar" | "aprobar" | "depositar" | "listo";
 
 export default function DepositarPage() {
+  const { t } = useTranslation();
   const [cuenta, setCuenta] = useState<Address | null>(null);
   const [retoId, setRetoId] = useState<string>("");
   const [monto, setMonto] = useState<string>("");
-  const [estado, setEstado] = useState<string>("");
+  const [estado, setEstado] = useState<EstadoReto | null>(null);
   const [paso, setPaso] = useState<Paso>("conectar");
   const [error, setError] = useState<string>("");
   const [ocupado, setOcupado] = useState(false);
@@ -58,9 +65,9 @@ export default function DepositarPage() {
 
   const proveedor = useCallback((): EIP1193Provider => {
     const eth = (window as unknown as { ethereum?: EIP1193Provider }).ethereum;
-    if (!eth) throw new Error("No encontré una wallet en este navegador. Instalá MetaMask y volvé a entrar.");
+    if (!eth) throw new Error(t("depositPage.errors.noWallet"));
     return eth;
-  }, []);
+  }, [t]);
 
   const conectar = useCallback(async () => {
     setError("");
@@ -69,7 +76,7 @@ export default function DepositarPage() {
       const eth = proveedor();
       const cuentas = (await eth.request({ method: "eth_requestAccounts" })) as Address[];
       const primera = cuentas[0];
-      if (!primera) throw new Error("No autorizaste ninguna cuenta.");
+      if (!primera) throw new Error(t("depositPage.errors.noAccount"));
 
       // Asegura que la wallet esté en Arbitrum Sepolia; si no la tiene, la agrega.
       try {
@@ -99,15 +106,15 @@ export default function DepositarPage() {
     } finally {
       setOcupado(false);
     }
-  }, [proveedor]);
+  }, [proveedor, t]);
 
   // Estado del reto en la cadena, para no dejar depositar en uno ya cerrado.
   useEffect(() => {
     if (!retoId || !POOL) return;
     publicClient
       .readContract({ address: POOL, abi: POOL_ABI, functionName: "challengeStatus", args: [BigInt(retoId)] })
-      .then(s => setEstado(ESTADOS[Number(s)] ?? "Desconocido"))
-      .catch(() => setEstado("no pude leerlo"));
+      .then(s => setEstado(ESTADOS[Number(s)] ?? "unknown"))
+      .catch(() => setEstado("unreadable"));
   }, [retoId, publicClient]);
 
   const depositar = useCallback(async () => {
@@ -128,7 +135,7 @@ export default function DepositarPage() {
         args: [cuenta],
       });
       if (saldo < requerido) {
-        throw new Error(`No te alcanza el USDC: necesitás ${monto} y tenés menos.`);
+        throw new Error(t("depositPage.errors.insufficient", { amount: monto }));
       }
 
       // 1) Aprobar, solo si la autorización vigente no alcanza.
@@ -169,74 +176,74 @@ export default function DepositarPage() {
     } finally {
       setOcupado(false);
     }
-  }, [cuenta, retoId, monto, proveedor, publicClient]);
+  }, [cuenta, retoId, monto, proveedor, publicClient, t]);
 
   const faltaConfig = !POOL || !USDC;
+  const estadoTexto = estado ? t(`depositPage.statuses.${estado}`) : "…";
 
   return (
     <main style={estilos.pagina}>
       <div style={estilos.tarjeta}>
         <div style={estilos.encabezado}>
           <span style={{ fontSize: 40 }}>🦦</span>
-          <h1 style={estilos.titulo}>Depositar en el reto</h1>
+          <h1 style={estilos.titulo}>{t("depositPage.title")}</h1>
+          <LanguageSwitcher className="ml-auto" />
         </div>
 
         {faltaConfig ? (
           <p style={estilos.error}>
-            Falta configurar las direcciones de los contratos. Avisale a quien administra el bot.
+            {t("depositPage.missingConfig")}
           </p>
         ) : (
           <>
             <dl style={estilos.datos}>
               <div style={estilos.fila}>
-                <dt style={estilos.etiqueta}>Reto</dt>
+                <dt style={estilos.etiqueta}>{t("depositPage.challenge")}</dt>
                 <dd style={estilos.valor}>#{retoId || "—"}</dd>
               </div>
               <div style={estilos.fila}>
-                <dt style={estilos.etiqueta}>Tu depósito</dt>
+                <dt style={estilos.etiqueta}>{t("depositPage.yourDeposit")}</dt>
                 <dd style={estilos.valor}>{monto || "—"} USDC</dd>
               </div>
               <div style={estilos.fila}>
-                <dt style={estilos.etiqueta}>Estado</dt>
-                <dd style={estilos.valor}>{estado || "…"}</dd>
+                <dt style={estilos.etiqueta}>{t("depositPage.status")}</dt>
+                <dd style={estilos.valor}>{estadoTexto}</dd>
               </div>
             </dl>
 
-            {estado === "Bloqueado" || estado === "Resuelto" || estado === "Reembolsado" ? (
-              <p style={estilos.aviso}>
-                Este reto ya no acepta depósitos: está <b>{estado}</b>.
-              </p>
+            {estado && CERRADOS.includes(estado) ? (
+              <p style={estilos.aviso}>{t("depositPage.closed", { status: estadoTexto })}</p>
             ) : paso === "listo" ? (
               <div style={estilos.exito}>
-                <p style={{ margin: 0, fontWeight: 600 }}>✅ Depósito confirmado</p>
+                <p style={{ margin: 0, fontWeight: 600 }}>{t("depositPage.confirmed")}</p>
                 <a
                   href={`https://sepolia.arbiscan.io/tx/${txHash}`}
                   target="_blank"
                   rel="noreferrer"
                   style={estilos.enlace}
                 >
-                  Ver en Arbiscan
+                  {t("depositPage.viewOnArbiscan")}
                 </a>
-                <p style={{ marginBottom: 0 }}>Ya podés volver al grupo de Telegram.</p>
+                <p style={{ marginBottom: 0 }}>{t("depositPage.backToGroup")}</p>
               </div>
             ) : !cuenta ? (
               <button onClick={conectar} disabled={ocupado} style={estilos.boton}>
-                {ocupado ? "Conectando…" : "Conectar wallet"}
+                {ocupado ? t("depositPage.connecting") : t("depositPage.connect")}
               </button>
             ) : (
               <>
                 <p style={estilos.cuenta}>
-                  Conectado: <code>{`${cuenta.slice(0, 6)}…${cuenta.slice(-4)}`}</code>
+                  {t("depositPage.connected")} <code>{`${cuenta.slice(0, 6)}…${cuenta.slice(-4)}`}</code>
                 </p>
                 <button onClick={depositar} disabled={ocupado || !retoId} style={estilos.boton}>
                   {ocupado
                     ? paso === "aprobar"
-                      ? "Aprobando USDC…"
-                      : "Depositando…"
-                    : `Depositar ${monto || ""} USDC`}
+                      ? t("depositPage.approving")
+                      : t("depositPage.depositing")
+                    : t("depositPage.deposit", { amount: monto })}
                 </button>
                 <p style={estilos.nota}>
-                  Son dos firmas: primero autorizás al contrato a mover tu USDC, después depositás.
+                  {t("depositPage.twoSignatures")}
                 </p>
               </>
             )}
